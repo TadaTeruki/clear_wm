@@ -1,5 +1,5 @@
 #[derive(Debug, PartialEq)]
-pub struct Client<WinId>
+pub(super) struct Client<WinId>
 where
     WinId: Copy + PartialEq,
 {
@@ -11,7 +11,7 @@ impl<WinId> Client<WinId>
 where
     WinId: Copy + PartialEq,
 {
-    pub fn new(app_id: WinId, frame_id: WinId) -> Self {
+    pub(super) fn new(app_id: WinId, frame_id: WinId) -> Self {
         Self { app_id, frame_id }
     }
 }
