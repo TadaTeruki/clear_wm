@@ -2,12 +2,12 @@ use super::client::Client;
 
 pub struct ClientContainer<WinId>
 where
-    WinId: Copy + PartialEq,
+    WinId: Copy + Eq,
 {
     clients: Vec<Client<WinId>>,
 }
 
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Eq)]
 pub enum WindowType {
     App,
     Frame,
@@ -15,7 +15,7 @@ pub enum WindowType {
 
 impl<WinId> ClientContainer<WinId>
 where
-    WinId: Copy + PartialEq,
+    WinId: Copy + Eq,
 {
     pub fn new() -> Self {
         Self {
@@ -27,11 +27,11 @@ where
         self.clients.push(client);
     }
 
-    pub fn query_client_from_id(&self, win_id: WinId) -> Option<(&Client<WinId>, WindowType)> {
+    pub fn query_client_from_id(&self, win_id: WinId) -> Option<(Client<WinId>, WindowType)> {
         if let Some(app) = self.clients.iter().find(|client| client.app_id == win_id) {
-            return Some((app, WindowType::App));
+            return Some((*app, WindowType::App));
         } else if let Some(frame) = self.clients.iter().find(|client| client.frame_id == win_id) {
-            return Some((frame, WindowType::Frame));
+            return Some((*frame, WindowType::Frame));
         }
         None
     }
