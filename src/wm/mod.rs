@@ -1,10 +1,9 @@
-use log::info;
 use x11rb::{
     connection::Connection,
     protocol::{
         xproto::{
             ChangeWindowAttributesAux, ConfigureRequestEvent, ConfigureWindowAux, ConnectionExt,
-            CreateWindowAux, EventMask, MapRequestEvent, Screen, SetMode, Window, WindowClass,
+            CreateWindowAux, EventMask, MapRequestEvent, Screen, Window, WindowClass,
         },
         Event,
     },
@@ -13,19 +12,38 @@ use x11rb::{
 
 use crate::model::client::container::ClientContainer;
 
+pub struct WindowManagerConfig {
+    pub border_width: u16,
+    pub titlebar_height: u16,
+}
+
+impl Default for WindowManagerConfig {
+    fn default() -> Self {
+        Self {
+            border_width: 4,
+            titlebar_height: 20,
+        }
+    }
+}
+
 pub struct WindowManager {
     connection: x11rb::rust_connection::RustConnection,
     screen_num: usize,
     client_container: ClientContainer<Window>,
+    window_manager_config: WindowManagerConfig,
 }
 
 impl WindowManager {
-    pub fn new(client_container: ClientContainer<Window>) -> Self {
+    pub fn new(
+        client_container: ClientContainer<Window>,
+        window_manager_config: WindowManagerConfig,
+    ) -> Self {
         let (connection, screen_num) = x11rb::connect(None).unwrap();
         Self {
             connection,
             screen_num,
             client_container,
+            window_manager_config,
         }
     }
 
@@ -73,33 +91,36 @@ impl WindowManager {
         &mut self,
         event: MapRequestEvent,
     ) -> Result<(), Box<dyn std::error::Error>> {
-        // create simple window for debug
         let frame = self.connection.generate_id()?;
-        let frame_values = CreateWindowAux::default().background_pixel(0x00ff00);
+        let frame_values = CreateWindowAux::default()
+            .event_mask(EventMask::BUTTON_PRESS | EventMask::EXPOSURE)
+            .background_pixel(0x888888);
+
+        let geometry = self.connection.get_geometry(event.window)?.reply()?;
 
         self.connection.create_window(
-            COPY_DEPTH_FROM_PARENT,
+            COPY_DEPTH_FROM_PARENT + 1,
             frame,
             self.screen().root,
-            300,
-            300,
-            100,
-            100,
-            1,
+            geometry.x,
+            geometry.y,
+            geometry.width,
+            geometry.height,
+            0,
             WindowClass::INPUT_OUTPUT,
             0,
             &frame_values,
         )?;
 
-        self.connection.grab_server()?;
-
         // map window
-        self.connection.map_window(event.window)?;
-
-        // map frame
+        self.connection.grab_server()?;
         self.connection.map_window(frame)?;
-
+        self.connection.map_window(event.window)?;
         self.connection.ungrab_server()?;
+
+        // add client to container
+        self.client_container.add_client(event.window, frame);
+
         Ok(())
     }
 }

@@ -11,7 +11,8 @@ fn main() {
     logger::setup_logging(Some("wm.log")).expect("Failed to initialize logging");
     info!("Starting window manager");
     let clicont: ClientContainer<Window> = ClientContainer::new();
-    WindowManager::new(clicont)
+    let wmconfig = wm::WindowManagerConfig::default();
+    WindowManager::new(clicont, wmconfig)
         .start()
         .unwrap_or_else(|e| error!("Error: {}", e));
 }
