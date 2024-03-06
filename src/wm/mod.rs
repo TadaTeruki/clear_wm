@@ -40,20 +40,24 @@ impl WindowManager {
         loop {
             self.connection.flush()?;
             let event = self.connection.wait_for_event()?;
-            info!("Event: {:?}", event);
-            match event {
-                Event::ClientMessage(_) => {
-                    return Ok(());
-                }
-                Event::ConfigureRequest(event) => self.handle_configure_request(event)?,
-                Event::MapRequest(event) => self.handle_map_request(event)?,
-                _ => {}
-            }
+            self.handle_event(event)?;
         }
     }
 
     fn screen(&self) -> &Screen {
         &self.connection.setup().roots[self.screen_num]
+    }
+
+    fn handle_event(&mut self, event: Event) -> Result<(), Box<dyn std::error::Error>> {
+        match event {
+            Event::ClientMessage(_) => {
+                return Ok(());
+            }
+            Event::ConfigureRequest(event) => self.handle_configure_request(event)?,
+            Event::MapRequest(event) => self.handle_map_request(event)?,
+            _ => {}
+        }
+        Ok(())
     }
 
     fn handle_configure_request(
