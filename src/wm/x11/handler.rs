@@ -14,6 +14,7 @@ use crate::model::client::container::ClientContainer;
 
 use super::session::X11Session;
 
+/// Handler processes X11 events and dispatches them to the appropriate client.
 pub struct Handler<'a> {
     session: &'a X11Session,
     client_container: ClientContainer<Window>,

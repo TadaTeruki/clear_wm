@@ -5,6 +5,7 @@ use x11rb::{
 
 use super::{handler::Handler, session::X11Session};
 
+/// X11WindowManager performs the main event loop and dispatches events to the handler.
 pub struct X11WindowManager<'a> {
     session: &'a X11Session,
     handler: Handler<'a>,
