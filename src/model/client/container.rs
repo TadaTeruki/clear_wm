@@ -1,10 +1,10 @@
-use super::ClientId;
+use super::Client;
 
 pub struct ClientContainer<WinId>
 where
     WinId: Copy + Eq,
 {
-    clients: Vec<ClientId<WinId>>,
+    clients: Vec<Client<WinId>>,
 }
 
 impl<WinId> ClientContainer<WinId>
@@ -18,10 +18,10 @@ where
     }
 
     pub fn add_client(&mut self, app_id: WinId, frame_id: WinId) {
-        self.clients.push(ClientId { app_id, frame_id });
+        self.clients.push(Client { app_id, frame_id });
     }
 
-    pub fn query_client_from_id(&self, win_id: WinId) -> Option<ClientId<WinId>> {
+    pub fn query_client_from_id(&self, win_id: WinId) -> Option<Client<WinId>> {
         if let Some(app) = self.clients.iter().find(|client| client.app_id == win_id) {
             return Some(*app);
         } else if let Some(frame) = self.clients.iter().find(|client| client.frame_id == win_id) {

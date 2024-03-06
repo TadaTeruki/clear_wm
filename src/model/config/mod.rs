@@ -1,7 +1,7 @@
 #[derive(Debug, Clone)]
 pub struct WindowManagerConfig {
-    pub border_width: u16,
-    pub titlebar_height: u16,
+    pub border_width: u32,
+    pub titlebar_height: u32,
 }
 
 impl Default for WindowManagerConfig {

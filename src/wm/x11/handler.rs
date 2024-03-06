@@ -10,7 +10,7 @@ use x11rb::{
     COPY_DEPTH_FROM_PARENT,
 };
 
-use crate::model::client::container::ClientContainer;
+use crate::model::client::{container::ClientContainer, geometry::ClientGeometry, Client};
 
 use super::session::X11Session;
 
@@ -91,4 +91,64 @@ impl<'a> Handler<'a> {
 
         Ok(())
     }
+
+    fn get_client_geometry_from_app_window(
+        &self,
+        window: Window,
+    ) -> Result<ClientGeometry, Box<dyn std::error::Error>> {
+        let app_geometry = self
+            .session
+            .connection()
+            .get_geometry(window)?
+            .reply()?;
+        Ok(ClientGeometry::App(
+            app_geometry.x as i32,
+            app_geometry.y as i32,
+            app_geometry.width as u32,
+            app_geometry.height as u32,
+        ))
+    }
+    
+    fn resize_client(
+        &self,
+        client: Client<Window>,
+        geometry: ClientGeometry,
+    ) -> Result<(), Box<dyn std::error::Error>> {
+        let config = self.session.config();
+        let (app_geometry, frame_geometry) = match geometry {
+            ClientGeometry::App(x, y, width, height) => {
+                let frame = geometry.to_frame(config.border_width, config.titlebar_height);
+                (geometry.to_tuple(), frame.to_tuple())
+            }
+            ClientGeometry::Frame(x, y, width, height) => {
+                let app = geometry.to_app(config.border_width, config.titlebar_height);
+                (app.to_tuple(), geometry.to_tuple())
+            }
+        };
+
+        self.session.connection().grab_server()?;
+
+        self.session.connection().configure_window(
+            client.app_id,
+            &ConfigureWindowAux::default()
+                .x(app_geometry.0 as i32)
+                .y(app_geometry.1 as i32)
+                .width(app_geometry.2)
+                .height(app_geometry.3),
+        )?;
+
+        self.session.connection().configure_window(
+            client.frame_id,
+            &ConfigureWindowAux::default()
+                .x(frame_geometry.0 as i32)
+                .y(frame_geometry.1 as i32)
+                .width(frame_geometry.2)
+                .height(frame_geometry.3),
+        )?;
+
+        self.session.connection().ungrab_server()?;
+
+        Ok(())
+    }
 }
+
