@@ -1,7 +1,7 @@
 pub mod container;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct Client<WinId>
+pub struct ClientId<WinId>
 where
     WinId: Copy + Eq,
 {
