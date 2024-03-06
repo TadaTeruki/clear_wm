@@ -1,4 +1,4 @@
-use log::info;
+use log::{error, info};
 use model::client::container::ClientContainer;
 use wm::WindowManager;
 use x11rb::protocol::xproto::Window;
@@ -13,5 +13,5 @@ fn main() {
     let clicont: ClientContainer<Window> = ClientContainer::new();
     WindowManager::new(clicont)
         .start()
-        .expect("Failed to start window manager");
+        .unwrap_or_else(|e| error!("Error: {}", e));
 }

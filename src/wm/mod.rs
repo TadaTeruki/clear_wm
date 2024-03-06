@@ -4,7 +4,7 @@ use x11rb::{
     protocol::{
         xproto::{
             ChangeWindowAttributesAux, ConfigureRequestEvent, ConfigureWindowAux, ConnectionExt,
-            CreateWindowAux, EventMask, MapRequestEvent, Window, WindowClass,
+            CreateWindowAux, EventMask, MapRequestEvent, Screen, SetMode, Window, WindowClass,
         },
         Event,
     },
@@ -30,18 +30,21 @@ impl WindowManager {
     }
 
     pub fn start(&mut self) -> Result<(), Box<dyn std::error::Error>> {
-        let screen = &self.connection.setup().roots[self.screen_num];
         let root_values = ChangeWindowAttributesAux::default()
             .event_mask(EventMask::SUBSTRUCTURE_REDIRECT | EventMask::SUBSTRUCTURE_NOTIFY);
 
         self.connection
-            .change_window_attributes(screen.root, &root_values)?
+            .change_window_attributes(self.screen().root, &root_values)?
             .check()?;
 
         loop {
+            self.connection.flush()?;
             let event = self.connection.wait_for_event()?;
             info!("Event: {:?}", event);
             match event {
+                Event::ClientMessage(_) => {
+                    return Ok(());
+                }
                 Event::ConfigureRequest(event) => self.handle_configure_request(event)?,
                 Event::MapRequest(event) => self.handle_map_request(event)?,
                 _ => {}
@@ -49,8 +52,8 @@ impl WindowManager {
         }
     }
 
-    fn root_window(&self) -> Window {
-        self.connection.setup().roots[self.screen_num].root
+    fn screen(&self) -> &Screen {
+        &self.connection.setup().roots[self.screen_num]
     }
 
     fn handle_configure_request(
@@ -73,12 +76,12 @@ impl WindowManager {
         self.connection.create_window(
             COPY_DEPTH_FROM_PARENT,
             frame,
-            self.root_window(),
+            self.screen().root,
             300,
             300,
             100,
             100,
-            10,
+            1,
             WindowClass::INPUT_OUTPUT,
             0,
             &frame_values,
