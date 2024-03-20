@@ -1,4 +1,4 @@
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 
 pub struct Geometry {
     pub x: i32,
@@ -7,6 +7,7 @@ pub struct Geometry {
     pub height: u32,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum ClientGeometry {
     App(Geometry),
     Frame(Geometry),
@@ -70,5 +71,47 @@ impl ClientGeometry {
                 height: geom.height,
             }),
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_client_geometry() {
+        let client_geom = ClientGeometry::from_app(0, 0, 100, 100);
+
+        assert_eq!(
+            client_geom.parse_as_frame(4, 20),
+            Geometry {
+                x: -4,
+                y: -24,
+                width: 108,
+                height: 128
+            }
+        );
+
+        assert_eq!(
+            client_geom.move_relative(10, 10),
+            ClientGeometry::from_app(10, 10, 100, 100)
+        );
+
+        let client_geom = ClientGeometry::from_frame(0, 0, 100, 100);
+
+        assert_eq!(
+            client_geom.parse_as_app(4, 20),
+            Geometry {
+                x: 4,
+                y: 24,
+                width: 92,
+                height: 72
+            }
+        );
+
+        assert_eq!(
+            client_geom.move_relative(10, 10),
+            ClientGeometry::from_frame(10, 10, 100, 100)
+        );
     }
 }
