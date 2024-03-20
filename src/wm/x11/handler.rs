@@ -1,16 +1,18 @@
+use log::info;
 use x11rb::{
     connection::Connection,
     protocol::{
         xproto::{
-            ConfigureRequestEvent, ConfigureWindowAux, ConnectionExt, CreateWindowAux, EventMask,
-            MapRequestEvent, Window, WindowClass,
+            ButtonPressEvent, ButtonReleaseEvent, ConfigureRequestEvent, ConfigureWindowAux,
+            ConnectionExt, CreateWindowAux, EventMask, MapRequestEvent, MotionNotifyEvent, Window,
+            WindowClass,
         },
         Event,
     },
     COPY_DEPTH_FROM_PARENT,
 };
 
-use crate::model::client::{container::ClientContainer, geometry::ClientGeometry, Client};
+use crate::model::client::{container::ClientContainer, geometry::ClientGeometry};
 
 use super::session::X11Session;
 
@@ -35,8 +37,35 @@ impl<'a> Handler<'a> {
             }
             Event::ConfigureRequest(event) => self.handle_configure_request(event)?,
             Event::MapRequest(event) => self.handle_map_request(event)?,
+            Event::ButtonPress(event) => self.handle_button_press(event)?,
+            Event::ButtonRelease(event) => self.handle_button_release(event)?,
+            Event::MotionNotify(event) => self.handle_motion_notify(event)?,
             _ => {}
         }
+        Ok(())
+    }
+
+    fn handle_button_press(
+        &self,
+        _event: ButtonPressEvent,
+    ) -> Result<(), Box<dyn std::error::Error>> {
+        info!("Button press");
+        Ok(())
+    }
+
+    fn handle_button_release(
+        &self,
+        _event: ButtonReleaseEvent,
+    ) -> Result<(), Box<dyn std::error::Error>> {
+        info!("Button release");
+        Ok(())
+    }
+
+    fn handle_motion_notify(
+        &self,
+        _event: MotionNotifyEvent,
+    ) -> Result<(), Box<dyn std::error::Error>> {
+        info!("Motion notify");
         Ok(())
     }
 
@@ -58,7 +87,12 @@ impl<'a> Handler<'a> {
     ) -> Result<(), Box<dyn std::error::Error>> {
         let frame = self.session.connection().generate_id()?;
         let frame_values = CreateWindowAux::default()
-            .event_mask(EventMask::BUTTON_PRESS | EventMask::EXPOSURE)
+            .event_mask(
+                EventMask::BUTTON_PRESS
+                    | EventMask::BUTTON_RELEASE
+                    | EventMask::POINTER_MOTION
+                    | EventMask::EXPOSURE,
+            )
             .background_pixel(0x888888);
 
         let original_geometry = self
