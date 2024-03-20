@@ -13,7 +13,7 @@ use x11rb::{
 
 use crate::model::client::{container::ClientContainer, geometry::ClientGeometry, Client};
 
-use super::session::X11Session;
+use super::{client_executor::ClientExecutor, middle_executor::MiddleExecutor};
 
 struct DraggingClient {
     pub client: Client<Window>,
@@ -22,16 +22,16 @@ struct DraggingClient {
 
 /// Handler processes X11 events and dispatches them to the appropriate client.
 pub struct Handler<'a> {
-    session: &'a X11Session,
+    middle_executor: MiddleExecutor<'a>,
     client_container: ClientContainer<Window>,
 
     dragging_client: Option<DraggingClient>,
 }
 
 impl<'a> Handler<'a> {
-    pub fn new(session: &'a X11Session) -> Self {
+    pub fn new(mid_executor: MiddleExecutor<'a>) -> Self {
         Self {
-            session,
+            middle_executor: mid_executor,
             dragging_client: None,
             client_container: ClientContainer::new(),
         }
@@ -115,13 +115,16 @@ impl<'a> Handler<'a> {
             root_position.1 - dragging_client.last_root_position.1,
         );
 
-        let client_geometry = self
-            .get_client_geometry(client)?
-            .move_relative(diff_position.0, diff_position.1);
+        let client_geometry = self.middle_executor.execute(Box::new(move |session| {
+            Ok(ClientExecutor::new(session)
+                .get_client_geometry(client)?
+                .move_relative(diff_position.0, diff_position.1))
+        }))?;
 
-        self.session.connection().grab_server()?;
-        self.apply_client_geometry(client, client_geometry)?;
-        self.session.connection().ungrab_server()?;
+        self.middle_executor
+            .execute_grabbed(Box::new(move |session| {
+                ClientExecutor::new(session).apply_client_geometry(client, client_geometry)
+            }))?;
 
         self.dragging_client = Some(DraggingClient {
             client,
@@ -136,62 +139,13 @@ impl<'a> Handler<'a> {
     ) -> Result<(), Box<dyn std::error::Error>> {
         let values: ConfigureWindowAux =
             ConfigureWindowAux::from_configure_request(&event).stack_mode(None);
-        self.session
-            .connection()
-            .configure_window(event.window, &values)?;
-        Ok(())
-    }
 
-    fn get_client_geometry(
-        &self,
-        client: Client<Window>,
-    ) -> Result<ClientGeometry, Box<dyn std::error::Error>> {
-        let x11_app_geometry = self
-            .session
-            .connection()
-            .get_geometry(client.app_id)?
-            .reply()?;
-
-        Ok(ClientGeometry::from_app(
-            x11_app_geometry.x as i32,
-            x11_app_geometry.y as i32,
-            x11_app_geometry.width as u32,
-            x11_app_geometry.height as u32,
-        ))
-    }
-
-    fn apply_client_geometry(
-        &self,
-        client: Client<Window>,
-        client_geometry: ClientGeometry,
-    ) -> Result<(), Box<dyn std::error::Error>> {
-        let app_geometry = client_geometry.parse_as_app(
-            self.session.config().border_width,
-            self.session.config().titlebar_height,
-        );
-
-        let frame_geometry = client_geometry.parse_as_frame(
-            self.session.config().border_width,
-            self.session.config().titlebar_height,
-        );
-
-        self.session.connection().configure_window(
-            client.app_id,
-            &ConfigureWindowAux::default()
-                .x(app_geometry.x)
-                .y(app_geometry.y)
-                .width(app_geometry.width)
-                .height(app_geometry.height),
-        )?;
-
-        self.session.connection().configure_window(
-            client.frame_id,
-            &ConfigureWindowAux::default()
-                .x(frame_geometry.x)
-                .y(frame_geometry.y)
-                .width(frame_geometry.width)
-                .height(frame_geometry.height),
-        )?;
+        self.middle_executor.execute(Box::new(move |session| {
+            session
+                .connection()
+                .configure_window(event.window, &values)?;
+            Ok(())
+        }))?;
 
         Ok(())
     }
@@ -200,7 +154,6 @@ impl<'a> Handler<'a> {
         &mut self,
         event: MapRequestEvent,
     ) -> Result<(), Box<dyn std::error::Error>> {
-        let frame = self.session.connection().generate_id()?;
         let frame_values = CreateWindowAux::default()
             .event_mask(
                 EventMask::BUTTON_PRESS
@@ -210,60 +163,62 @@ impl<'a> Handler<'a> {
             )
             .background_pixel(0x888888);
 
-        let original_geometry = self
-            .session
-            .connection()
-            .get_geometry(event.window)?
-            .reply()?;
+        let (frame, app_geometry) = self.middle_executor.execute(Box::new(move |session| {
+            let frame = session.connection().generate_id()?;
 
-        let client_geometry = ClientGeometry::from_app(
-            original_geometry.x as i32 + self.session.config().border_width as i32,
-            original_geometry.y as i32
-                + self.session.config().titlebar_height as i32
-                + self.session.config().border_width as i32,
-            original_geometry.width as u32,
-            original_geometry.height as u32,
-        );
+            let original_geometry = session.connection().get_geometry(event.window)?.reply()?;
 
-        let app_geometry = client_geometry.parse_as_app(
-            self.session.config().border_width,
-            self.session.config().titlebar_height,
-        );
+            let client_geometry = ClientGeometry::from_app(
+                original_geometry.x as i32 + session.config().border_width as i32,
+                original_geometry.y as i32
+                    + session.config().titlebar_height as i32
+                    + session.config().border_width as i32,
+                original_geometry.width as u32,
+                original_geometry.height as u32,
+            );
 
-        let frame_geometry = client_geometry.parse_as_frame(
-            self.session.config().border_width,
-            self.session.config().titlebar_height,
-        );
+            let app_geometry = client_geometry.parse_as_app(
+                session.config().border_width,
+                session.config().titlebar_height,
+            );
 
-        self.session.connection().create_window(
-            COPY_DEPTH_FROM_PARENT,
-            frame,
-            self.session.screen().root,
-            frame_geometry.x as i16,
-            frame_geometry.y as i16,
-            frame_geometry.width as u16,
-            frame_geometry.height as u16,
-            0,
-            WindowClass::INPUT_OUTPUT,
-            0,
-            &frame_values,
-        )?;
+            let frame_geometry = client_geometry.parse_as_frame(
+                session.config().border_width,
+                session.config().titlebar_height,
+            );
 
-        self.session.connection().grab_server()?;
+            session.connection().create_window(
+                COPY_DEPTH_FROM_PARENT,
+                frame,
+                session.screen().root,
+                frame_geometry.x as i16,
+                frame_geometry.y as i16,
+                frame_geometry.width as u16,
+                frame_geometry.height as u16,
+                0,
+                WindowClass::INPUT_OUTPUT,
+                0,
+                &frame_values,
+            )?;
+            Ok((frame, app_geometry))
+        }))?;
 
-        self.session.connection().configure_window(
-            event.window,
-            &ConfigureWindowAux::default()
-                .stack_mode(x11rb::protocol::xproto::StackMode::ABOVE)
-                .x(app_geometry.x)
-                .y(app_geometry.y)
-                .width(app_geometry.width)
-                .height(app_geometry.height),
-        )?;
+        self.middle_executor
+            .execute_grabbed(Box::new(move |session| {
+                session.connection().configure_window(
+                    event.window,
+                    &ConfigureWindowAux::default()
+                        .stack_mode(x11rb::protocol::xproto::StackMode::ABOVE)
+                        .x(app_geometry.x)
+                        .y(app_geometry.y)
+                        .width(app_geometry.width)
+                        .height(app_geometry.height),
+                )?;
 
-        self.session.connection().map_window(frame)?;
-        self.session.connection().map_window(event.window)?;
-        self.session.connection().ungrab_server()?;
+                session.connection().map_window(frame)?;
+                session.connection().map_window(event.window)?;
+                Ok(())
+            }))?;
 
         // add client to container
         self.client_container.add_client(event.window, frame);
