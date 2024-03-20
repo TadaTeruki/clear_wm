@@ -1,4 +1,3 @@
-use log::info;
 use x11rb::{
     connection::Connection,
     protocol::{
@@ -67,8 +66,6 @@ impl<'a> Handler<'a> {
         } else {
             return Ok(());
         };
-        info!("Client found: {:?}", client);
-
         // save the start position of pointer for dragging
         let last_root_position = (event.root_x as i32, event.root_y as i32);
         self.dragging_client = Some(DraggingClient {
@@ -82,7 +79,6 @@ impl<'a> Handler<'a> {
         &mut self,
         _event: ButtonReleaseEvent,
     ) -> Result<(), Box<dyn std::error::Error>> {
-        info!("Button release");
         self.dragging_client = None;
         Ok(())
     }
@@ -101,7 +97,6 @@ impl<'a> Handler<'a> {
         } else {
             return Ok(());
         };
-        info!("Client found: {:?}", client);
 
         // check if the client is being dragged
         let dragging_client: &DraggingClient = if let Some(dragging_client) = &self.dragging_client
@@ -132,8 +127,6 @@ impl<'a> Handler<'a> {
             client,
             last_root_position: root_position,
         });
-
-        info!("Motion notify");
         Ok(())
     }
 
@@ -262,8 +255,8 @@ impl<'a> Handler<'a> {
             event.window,
             &ConfigureWindowAux::default()
                 .stack_mode(x11rb::protocol::xproto::StackMode::ABOVE)
-                .x(app_geometry.x as i32)
-                .y(app_geometry.y as i32)
+                .x(app_geometry.x)
+                .y(app_geometry.y)
                 .width(app_geometry.width)
                 .height(app_geometry.height),
         )?;
