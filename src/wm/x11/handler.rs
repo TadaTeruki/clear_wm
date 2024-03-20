@@ -44,7 +44,8 @@ impl<'a> Handler<'a> {
         &self,
         event: ConfigureRequestEvent,
     ) -> Result<(), Box<dyn std::error::Error>> {
-        let values: ConfigureWindowAux = ConfigureWindowAux::from_configure_request(&event);
+        let values: ConfigureWindowAux =
+            ConfigureWindowAux::from_configure_request(&event).stack_mode(None);
         self.session
             .connection()
             .configure_window(event.window, &values)?;
@@ -60,28 +61,57 @@ impl<'a> Handler<'a> {
             .event_mask(EventMask::BUTTON_PRESS | EventMask::EXPOSURE)
             .background_pixel(0x888888);
 
-        let geometry = self
+        let original_geometry = self
             .session
             .connection()
             .get_geometry(event.window)?
             .reply()?;
 
+        let client_geometry = ClientGeometry::from_app(
+            original_geometry.x as i32 + self.session.config().border_width as i32,
+            original_geometry.y as i32
+                + self.session.config().titlebar_height as i32
+                + self.session.config().border_width as i32,
+            original_geometry.width as u32,
+            original_geometry.height as u32,
+        );
+
+        let app_geometry = client_geometry.parse_as_app(
+            self.session.config().border_width,
+            self.session.config().titlebar_height,
+        );
+
+        let frame_geometry = client_geometry.parse_as_frame(
+            self.session.config().border_width,
+            self.session.config().titlebar_height,
+        );
+
         self.session.connection().create_window(
-            COPY_DEPTH_FROM_PARENT + 1,
+            COPY_DEPTH_FROM_PARENT,
             frame,
             self.session.screen().root,
-            geometry.x,
-            geometry.y,
-            geometry.width,
-            geometry.height,
+            frame_geometry.x as i16,
+            frame_geometry.y as i16,
+            frame_geometry.width as u16,
+            frame_geometry.height as u16,
             0,
             WindowClass::INPUT_OUTPUT,
             0,
             &frame_values,
         )?;
 
-        // map window
         self.session.connection().grab_server()?;
+
+        self.session.connection().configure_window(
+            event.window,
+            &ConfigureWindowAux::default()
+                .stack_mode(x11rb::protocol::xproto::StackMode::ABOVE)
+                .x(app_geometry.x as i32)
+                .y(app_geometry.y as i32)
+                .width(app_geometry.width)
+                .height(app_geometry.height),
+        )?;
+
         self.session.connection().map_window(frame)?;
         self.session.connection().map_window(event.window)?;
         self.session.connection().ungrab_server()?;
@@ -91,24 +121,7 @@ impl<'a> Handler<'a> {
 
         Ok(())
     }
-
-    fn get_client_geometry_from_app_window(
-        &self,
-        window: Window,
-    ) -> Result<ClientGeometry, Box<dyn std::error::Error>> {
-        let app_geometry = self
-            .session
-            .connection()
-            .get_geometry(window)?
-            .reply()?;
-        Ok(ClientGeometry::App(
-            app_geometry.x as i32,
-            app_geometry.y as i32,
-            app_geometry.width as u32,
-            app_geometry.height as u32,
-        ))
-    }
-    
+    /*
     fn resize_client(
         &self,
         client: Client<Window>,
@@ -150,5 +163,5 @@ impl<'a> Handler<'a> {
 
         Ok(())
     }
+    */
 }
-
