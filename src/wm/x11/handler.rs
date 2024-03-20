@@ -1,4 +1,4 @@
-use log::{info, warn};
+use log::info;
 use x11rb::{
     connection::Connection,
     protocol::{
@@ -16,18 +16,24 @@ use crate::model::client::{container::ClientContainer, geometry::ClientGeometry,
 
 use super::session::X11Session;
 
+struct DraggingClient {
+    pub client: Client<Window>,
+    pub last_root_position: (i32, i32),
+}
+
 /// Handler processes X11 events and dispatches them to the appropriate client.
 pub struct Handler<'a> {
     session: &'a X11Session,
-    grabbed_client: Option<Client<Window>>,
     client_container: ClientContainer<Window>,
+
+    dragging_client: Option<DraggingClient>,
 }
 
 impl<'a> Handler<'a> {
     pub fn new(session: &'a X11Session) -> Self {
         Self {
             session,
-            grabbed_client: None,
+            dragging_client: None,
             client_container: ClientContainer::new(),
         }
     }
@@ -51,19 +57,24 @@ impl<'a> Handler<'a> {
         &mut self,
         event: ButtonPressEvent,
     ) -> Result<(), Box<dyn std::error::Error>> {
+        // get client if the window is a frame
         let client = if let Some(client) = self.client_container.query_client_from_id(event.event) {
             if client.frame_id == event.event {
                 client
             } else {
-                // client is not a frame
                 return Ok(());
             }
         } else {
-            // client not found
             return Ok(());
         };
         info!("Client found: {:?}", client);
-        self.grabbed_client = Some(client);
+
+        // save the start position of pointer for dragging
+        let last_root_position = (event.root_x as i32, event.root_y as i32);
+        self.dragging_client = Some(DraggingClient {
+            client,
+            last_root_position,
+        });
         Ok(())
     }
 
@@ -72,14 +83,54 @@ impl<'a> Handler<'a> {
         _event: ButtonReleaseEvent,
     ) -> Result<(), Box<dyn std::error::Error>> {
         info!("Button release");
-        self.grabbed_client = None;
+        self.dragging_client = None;
         Ok(())
     }
 
     fn handle_motion_notify(
-        &self,
-        _event: MotionNotifyEvent,
+        &mut self,
+        event: MotionNotifyEvent,
     ) -> Result<(), Box<dyn std::error::Error>> {
+        // get client if the window is a frame
+        let client = if let Some(client) = self.client_container.query_client_from_id(event.event) {
+            if client.frame_id == event.event {
+                client
+            } else {
+                return Ok(());
+            }
+        } else {
+            return Ok(());
+        };
+        info!("Client found: {:?}", client);
+
+        let dragging_client = if let Some(dragging_client) = &self.dragging_client {
+            if dragging_client.client != client {
+                return Ok(());
+            }
+            dragging_client
+        } else {
+            return Ok(());
+        };
+
+        let root_position = (event.root_x as i32, event.root_y as i32);
+        let diff_position = (
+            root_position.0 - dragging_client.last_root_position.0,
+            root_position.1 - dragging_client.last_root_position.1,
+        );
+
+        let client_geometry = self
+            .get_client_geometry(client)?
+            .move_relative(diff_position.0, diff_position.1);
+
+        self.session.connection().grab_server()?;
+        self.apply_client_geometry(client, client_geometry)?;
+        self.session.connection().ungrab_server()?;
+
+        self.dragging_client = Some(DraggingClient {
+            client,
+            last_root_position: root_position,
+        });
+
         info!("Motion notify");
         Ok(())
     }
@@ -93,6 +144,60 @@ impl<'a> Handler<'a> {
         self.session
             .connection()
             .configure_window(event.window, &values)?;
+        Ok(())
+    }
+
+    fn get_client_geometry(
+        &self,
+        client: Client<Window>,
+    ) -> Result<ClientGeometry, Box<dyn std::error::Error>> {
+        let x11_app_geometry = self
+            .session
+            .connection()
+            .get_geometry(client.app_id)?
+            .reply()?;
+
+        Ok(ClientGeometry::from_app(
+            x11_app_geometry.x as i32,
+            x11_app_geometry.y as i32,
+            x11_app_geometry.width as u32,
+            x11_app_geometry.height as u32,
+        ))
+    }
+
+    fn apply_client_geometry(
+        &self,
+        client: Client<Window>,
+        client_geometry: ClientGeometry,
+    ) -> Result<(), Box<dyn std::error::Error>> {
+        let app_geometry = client_geometry.parse_as_app(
+            self.session.config().border_width,
+            self.session.config().titlebar_height,
+        );
+
+        let frame_geometry = client_geometry.parse_as_frame(
+            self.session.config().border_width,
+            self.session.config().titlebar_height,
+        );
+
+        self.session.connection().configure_window(
+            client.app_id,
+            &ConfigureWindowAux::default()
+                .x(app_geometry.x)
+                .y(app_geometry.y)
+                .width(app_geometry.width)
+                .height(app_geometry.height),
+        )?;
+
+        self.session.connection().configure_window(
+            client.frame_id,
+            &ConfigureWindowAux::default()
+                .x(frame_geometry.x)
+                .y(frame_geometry.y)
+                .width(frame_geometry.width)
+                .height(frame_geometry.height),
+        )?;
+
         Ok(())
     }
 

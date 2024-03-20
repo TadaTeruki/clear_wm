@@ -54,4 +54,21 @@ impl ClientGeometry {
             },
         }
     }
+
+    pub fn move_relative(&self, x: i32, y: i32) -> ClientGeometry {
+        match self {
+            ClientGeometry::App(geom) => ClientGeometry::App(Geometry {
+                x: geom.x + x,
+                y: geom.y + y,
+                width: geom.width,
+                height: geom.height,
+            }),
+            ClientGeometry::Frame(geom) => ClientGeometry::Frame(Geometry {
+                x: geom.x + x,
+                y: geom.y + y,
+                width: geom.width,
+                height: geom.height,
+            }),
+        }
+    }
 }
