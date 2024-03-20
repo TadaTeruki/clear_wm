@@ -1,4 +1,4 @@
-use log::info;
+use log::{info, warn};
 use x11rb::{
     connection::Connection,
     protocol::{
@@ -12,13 +12,14 @@ use x11rb::{
     COPY_DEPTH_FROM_PARENT,
 };
 
-use crate::model::client::{container::ClientContainer, geometry::ClientGeometry};
+use crate::model::client::{container::ClientContainer, geometry::ClientGeometry, Client};
 
 use super::session::X11Session;
 
 /// Handler processes X11 events and dispatches them to the appropriate client.
 pub struct Handler<'a> {
     session: &'a X11Session,
+    grabbed_client: Option<Client<Window>>,
     client_container: ClientContainer<Window>,
 }
 
@@ -26,6 +27,7 @@ impl<'a> Handler<'a> {
     pub fn new(session: &'a X11Session) -> Self {
         Self {
             session,
+            grabbed_client: None,
             client_container: ClientContainer::new(),
         }
     }
@@ -46,18 +48,31 @@ impl<'a> Handler<'a> {
     }
 
     fn handle_button_press(
-        &self,
-        _event: ButtonPressEvent,
+        &mut self,
+        event: ButtonPressEvent,
     ) -> Result<(), Box<dyn std::error::Error>> {
-        info!("Button press");
+        let client = if let Some(client) = self.client_container.query_client_from_id(event.event) {
+            if client.frame_id == event.event {
+                client
+            } else {
+                // client is not a frame
+                return Ok(());
+            }
+        } else {
+            // client not found
+            return Ok(());
+        };
+        info!("Client found: {:?}", client);
+        self.grabbed_client = Some(client);
         Ok(())
     }
 
     fn handle_button_release(
-        &self,
+        &mut self,
         _event: ButtonReleaseEvent,
     ) -> Result<(), Box<dyn std::error::Error>> {
         info!("Button release");
+        self.grabbed_client = None;
         Ok(())
     }
 
