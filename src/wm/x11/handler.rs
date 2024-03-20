@@ -103,7 +103,9 @@ impl<'a> Handler<'a> {
         };
         info!("Client found: {:?}", client);
 
-        let dragging_client = if let Some(dragging_client) = &self.dragging_client {
+        // check if the client is being dragged
+        let dragging_client: &DraggingClient = if let Some(dragging_client) = &self.dragging_client
+        {
             if dragging_client.client != client {
                 return Ok(());
             }
@@ -275,47 +277,4 @@ impl<'a> Handler<'a> {
 
         Ok(())
     }
-    /*
-    fn resize_client(
-        &self,
-        client: Client<Window>,
-        geometry: ClientGeometry,
-    ) -> Result<(), Box<dyn std::error::Error>> {
-        let config = self.session.config();
-        let (app_geometry, frame_geometry) = match geometry {
-            ClientGeometry::App(x, y, width, height) => {
-                let frame = geometry.to_frame(config.border_width, config.titlebar_height);
-                (geometry.to_tuple(), frame.to_tuple())
-            }
-            ClientGeometry::Frame(x, y, width, height) => {
-                let app = geometry.to_app(config.border_width, config.titlebar_height);
-                (app.to_tuple(), geometry.to_tuple())
-            }
-        };
-
-        self.session.connection().grab_server()?;
-
-        self.session.connection().configure_window(
-            client.app_id,
-            &ConfigureWindowAux::default()
-                .x(app_geometry.0 as i32)
-                .y(app_geometry.1 as i32)
-                .width(app_geometry.2)
-                .height(app_geometry.3),
-        )?;
-
-        self.session.connection().configure_window(
-            client.frame_id,
-            &ConfigureWindowAux::default()
-                .x(frame_geometry.0 as i32)
-                .y(frame_geometry.1 as i32)
-                .width(frame_geometry.2)
-                .height(frame_geometry.3),
-        )?;
-
-        self.session.connection().ungrab_server()?;
-
-        Ok(())
-    }
-    */
 }
