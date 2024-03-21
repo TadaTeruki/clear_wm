@@ -1,5 +1,3 @@
-use crate::model::config::WindowManagerConfig;
-
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 
 pub struct Geometry {
