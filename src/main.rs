@@ -1,8 +1,9 @@
 use log::{error, info};
 use wm::x11::window_manager::X11WindowManager;
 
-use crate::{model::config::WindowManagerConfig, wm::x11::session::X11Session};
+use crate::{config::WindowManagerConfig, wm::x11::session::X11Session};
 
+mod config;
 mod logger;
 mod model;
 mod wm;

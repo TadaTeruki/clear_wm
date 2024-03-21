@@ -1,6 +1,6 @@
 use x11rb::{connection::Connection, protocol::xproto::Screen, rust_connection::RustConnection};
 
-use crate::model::config::WindowManagerConfig;
+use crate::config::WindowManagerConfig;
 
 /// X11Session connects to the X11 server and provides static information about the X11 server and the window manager configuration.
 pub struct X11Session {

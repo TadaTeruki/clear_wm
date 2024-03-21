@@ -1,4 +1,4 @@
-use crate::model::config::FrameConfig;
+use crate::config::FrameConfig;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 
