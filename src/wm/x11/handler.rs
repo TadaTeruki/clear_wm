@@ -11,28 +11,23 @@ use x11rb::{
     COPY_DEPTH_FROM_PARENT,
 };
 
-use crate::model::client::{container::ClientContainer, geometry::ClientGeometry, Client};
+use crate::model::client::{container::ClientContainer, drag::DragState, geometry::ClientGeometry};
 
 use super::{client_executor::ClientExecutor, session::X11Session};
-
-struct DraggingClient {
-    pub client: Client<Window>,
-    pub last_root_position: (i32, i32),
-}
 
 /// Handler processes X11 events and dispatches them to the appropriate client.
 pub struct Handler<'a> {
     session: &'a X11Session,
     client_container: ClientContainer<Window>,
 
-    dragging_client: Option<DraggingClient>,
+    drag_state: DragState<Window>,
 }
 
 impl<'a> Handler<'a> {
     pub fn new(session: &'a X11Session) -> Self {
         Self {
             session,
-            dragging_client: None,
+            drag_state: DragState::None,
             client_container: ClientContainer::new(),
         }
     }
@@ -86,14 +81,16 @@ impl<'a> Handler<'a> {
             };
 
         let client_exec = ClientExecutor::new(self.session);
-        client_exec.focus_client(client)?;
+        let previous_client = if let DragState::Dragged(drag_state) = &self.drag_state {
+            Some(drag_state.client())
+        } else {
+            None
+        };
+        client_exec.focus_client(client, previous_client)?;
 
         // save the start position of pointer for dragging
         let last_root_position = (event.root_x as i32, event.root_y as i32);
-        self.dragging_client = Some(DraggingClient {
-            client,
-            last_root_position,
-        });
+        self.drag_state = DragState::new_as_dragging(client, last_root_position);
         Ok(())
     }
 
@@ -101,7 +98,7 @@ impl<'a> Handler<'a> {
         &mut self,
         _event: ButtonReleaseEvent,
     ) -> Result<(), Box<dyn std::error::Error>> {
-        self.dragging_client = None;
+        self.drag_state.release_from_dragging();
         Ok(())
     }
 
@@ -117,21 +114,17 @@ impl<'a> Handler<'a> {
                 return Ok(());
             };
 
-        // check if the client is being dragged
-        let dragging_client: &DraggingClient = if let Some(dragging_client) = &self.dragging_client
+        let drag_state = if let Some(drag_state) = self.drag_state.parse_with_check_dragging(client)
         {
-            if dragging_client.client != client {
-                return Ok(());
-            }
-            dragging_client
+            drag_state
         } else {
             return Ok(());
         };
 
         let root_position = (event.root_x as i32, event.root_y as i32);
         let diff_position = (
-            root_position.0 - dragging_client.last_root_position.0,
-            root_position.1 - dragging_client.last_root_position.1,
+            root_position.0 - drag_state.last_root_position().0,
+            root_position.1 - drag_state.last_root_position().1,
         );
 
         let client_exec = ClientExecutor::new(self.session);
@@ -142,10 +135,7 @@ impl<'a> Handler<'a> {
 
         self.execute_grabbed(|| client_exec.apply_client_geometry(client, client_geometry))?;
 
-        self.dragging_client = Some(DraggingClient {
-            client,
-            last_root_position: root_position,
-        });
+        self.drag_state = DragState::new_as_dragging(client, root_position);
         Ok(())
     }
 
@@ -181,6 +171,13 @@ impl<'a> Handler<'a> {
         &mut self,
         event: MapRequestEvent,
     ) -> Result<(), Box<dyn std::error::Error>> {
+        let color = {
+            let min_background_color = 0x666666;
+            let color_interval = 5;
+            let color_step = 0x111111;
+            min_background_color + (event.window % color_interval) * color_step
+        };
+
         let frame_values = CreateWindowAux::default()
             .event_mask(
                 EventMask::BUTTON_PRESS
@@ -188,7 +185,7 @@ impl<'a> Handler<'a> {
                     | EventMask::POINTER_MOTION
                     | EventMask::EXPOSURE,
             )
-            .background_pixel(0x888888);
+            .background_pixel(color);
 
         let frame = self.session.connection().generate_id()?;
 

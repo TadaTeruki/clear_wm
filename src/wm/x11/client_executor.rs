@@ -13,13 +13,28 @@ impl<'a> ClientExecutor<'a> {
         Self { session }
     }
 
-    pub fn focus_client(&self, client: Client<Window>) -> Result<(), Box<dyn std::error::Error>> {
+    pub fn focus_client(
+        &self,
+        client: Client<Window>,
+        previous_client: Option<Client<Window>>,
+    ) -> Result<(), Box<dyn std::error::Error>> {
+        // Focus the client's application window.
         self.session.connection().set_input_focus(
             x11rb::protocol::xproto::InputFocus::POINTER_ROOT,
             client.app_id,
             x11rb::CURRENT_TIME,
         )?;
 
+        // If there is a previous client, move the frame to the above of the stack to hide application window.
+        if let Some(previous_client) = previous_client {
+            self.session.connection().configure_window(
+                previous_client.frame_id,
+                &ConfigureWindowAux::default()
+                    .stack_mode(x11rb::protocol::xproto::StackMode::ABOVE),
+            )?;
+        }
+
+        // Move the frame and the application window to the above of the stack.
         self.session.connection().configure_window(
             client.frame_id,
             &ConfigureWindowAux::default().stack_mode(x11rb::protocol::xproto::StackMode::ABOVE),
