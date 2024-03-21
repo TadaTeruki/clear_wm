@@ -35,6 +35,7 @@ impl ClientGeometry {
         }
     }
 
+    #[allow(dead_code)]
     pub fn from_frame(
         x: i32,
         y: i32,
