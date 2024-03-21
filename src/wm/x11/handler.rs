@@ -1,3 +1,4 @@
+use log::info;
 use x11rb::{
     connection::Connection,
     protocol::{
@@ -138,6 +139,8 @@ impl<'a> Handler<'a> {
 
         self.execute_grabbed(|| client_exec.apply_client_geometry(client, client_geometry))?;
 
+        info!("motion notify: {:?}", event);
+
         self.dragging_client = Some(DraggingClient {
             client,
             last_root_position: root_position,
@@ -149,13 +152,27 @@ impl<'a> Handler<'a> {
         &self,
         event: ConfigureRequestEvent,
     ) -> Result<(), Box<dyn std::error::Error>> {
+        // just configure the window
         let values: ConfigureWindowAux =
             ConfigureWindowAux::from_configure_request(&event).stack_mode(None);
-
         self.session
             .connection()
             .configure_window(event.window, &values)?;
 
+        if let Some(client) = self.client_container.query_client_from_app(event.window) {
+            // if the window is binded to a frame, move the frame and configure the window
+            let client_exec = ClientExecutor::new(self.session);
+            let client_geometry = ClientGeometry::from_app(
+                event.x as i32,
+                event.y as i32,
+                event.width as u32,
+                event.height as u32,
+                self.session.config().border_width,
+                self.session.config().titlebar_height,
+            );
+
+            self.execute_grabbed(|| client_exec.apply_client_geometry(client, client_geometry))?;
+        }
         Ok(())
     }
 
