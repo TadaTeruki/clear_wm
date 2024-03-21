@@ -15,7 +15,7 @@ impl Default for WindowManagerConfig {
         Self {
             frame_config: FrameConfig {
                 border_width: 18,
-                titlebar_height: 20,
+                titlebar_height: 28,
                 corner_radius: 24,
             },
         }

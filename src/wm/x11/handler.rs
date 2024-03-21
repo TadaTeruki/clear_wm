@@ -194,10 +194,8 @@ impl<'a> Handler<'a> {
         let frame_config = self.session.config().frame_config;
 
         let client_geometry: ClientGeometry = ClientGeometry::from_app(
-            original_geometry.x as i32 + frame_config.border_width as i32,
-            original_geometry.y as i32
-                + frame_config.titlebar_height as i32
-                + frame_config.border_width as i32,
+            original_geometry.x as i32,
+            original_geometry.y as i32 + frame_config.titlebar_height as i32,
             original_geometry.width as u32,
             original_geometry.height as u32,
             frame_config,
