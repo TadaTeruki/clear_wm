@@ -3,15 +3,15 @@ use x11rb::{
     protocol::{
         xproto::{
             ButtonPressEvent, ButtonReleaseEvent, ConfigureRequestEvent, ConfigureWindowAux,
-            ConnectionExt, CreateWindowAux, EventMask, MapRequestEvent, MotionNotifyEvent, Window,
-            WindowClass,
+            ConnectionExt, CreateWindowAux, EventMask, MapRequestEvent, MotionNotifyEvent,
+            UnmapNotifyEvent, Window, WindowClass,
         },
         Event,
     },
     COPY_DEPTH_FROM_PARENT,
 };
 
-use crate::model::client::{container::ClientContainer, geometry::ClientGeometry, Client};
+use crate::model::client::{self, container::ClientContainer, geometry::ClientGeometry, Client};
 
 use super::{client_executor::ClientExecutor, session::X11Session};
 
@@ -47,8 +47,29 @@ impl<'a> Handler<'a> {
             Event::ButtonPress(event) => self.handle_button_press(event)?,
             Event::ButtonRelease(event) => self.handle_button_release(event)?,
             Event::MotionNotify(event) => self.handle_motion_notify(event)?,
+            Event::UnmapNotify(event) => self.handle_unmap_notify(event)?,
             _ => {}
         }
+        Ok(())
+    }
+
+    fn handle_unmap_notify(
+        &mut self,
+        event: UnmapNotifyEvent,
+    ) -> Result<(), Box<dyn std::error::Error>> {
+        let client = if let Some(client) = self.client_container.query_client_from_app(event.window)
+        {
+            client
+        } else {
+            return Ok(());
+        };
+
+        self.execute_grabbed(|| {
+            self.session.connection().destroy_window(client.frame_id)?;
+            Ok(())
+        })?;
+
+        self.client_container.remove_client(client);
         Ok(())
     }
 
@@ -57,15 +78,12 @@ impl<'a> Handler<'a> {
         event: ButtonPressEvent,
     ) -> Result<(), Box<dyn std::error::Error>> {
         // get client if the window is a frame
-        let client = if let Some(client) = self.client_container.query_client_from_id(event.event) {
-            if client.frame_id == event.event {
+        let client =
+            if let Some(client) = self.client_container.query_client_from_frame(event.event) {
                 client
             } else {
                 return Ok(());
-            }
-        } else {
-            return Ok(());
-        };
+            };
         // save the start position of pointer for dragging
         let last_root_position = (event.root_x as i32, event.root_y as i32);
         self.dragging_client = Some(DraggingClient {
@@ -88,15 +106,12 @@ impl<'a> Handler<'a> {
         event: MotionNotifyEvent,
     ) -> Result<(), Box<dyn std::error::Error>> {
         // get client if the window is a frame
-        let client = if let Some(client) = self.client_container.query_client_from_id(event.event) {
-            if client.frame_id == event.event {
+        let client =
+            if let Some(client) = self.client_container.query_client_from_frame(event.event) {
                 client
             } else {
                 return Ok(());
-            }
-        } else {
-            return Ok(());
-        };
+            };
 
         // check if the client is being dragged
         let dragging_client: &DraggingClient = if let Some(dragging_client) = &self.dragging_client
