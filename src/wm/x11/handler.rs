@@ -11,7 +11,7 @@ use x11rb::{
     COPY_DEPTH_FROM_PARENT,
 };
 
-use crate::model::client::{self, container::ClientContainer, geometry::ClientGeometry, Client};
+use crate::model::client::{container::ClientContainer, geometry::ClientGeometry, Client};
 
 use super::{client_executor::ClientExecutor, session::X11Session};
 
@@ -187,17 +187,13 @@ impl<'a> Handler<'a> {
                 + self.session.config().border_width as i32,
             original_geometry.width as u32,
             original_geometry.height as u32,
-        );
-
-        let app_geometry = client_geometry.parse_as_app(
             self.session.config().border_width,
             self.session.config().titlebar_height,
         );
 
-        let frame_geometry = client_geometry.parse_as_frame(
-            self.session.config().border_width,
-            self.session.config().titlebar_height,
-        );
+        let app_geometry = client_geometry.parse_as_app();
+
+        let frame_geometry = client_geometry.parse_as_frame();
 
         self.session.connection().create_window(
             COPY_DEPTH_FROM_PARENT,
