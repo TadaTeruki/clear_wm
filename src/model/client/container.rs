@@ -17,8 +17,10 @@ where
         }
     }
 
-    pub fn add_client(&mut self, app_id: WinId, frame_id: WinId) {
-        self.clients.push(Client { app_id, frame_id });
+    pub fn add_client(&mut self, app_id: WinId, frame_id: WinId) -> Client<WinId> {
+        let client = Client { app_id, frame_id };
+        self.clients.push(client);
+        client
     }
 
     pub fn query_client_from_app(&self, win_id: WinId) -> Option<Client<WinId>> {

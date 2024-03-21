@@ -3,24 +3,23 @@ use x11rb::{
     protocol::{
         xproto::{
             ButtonPressEvent, ButtonReleaseEvent, ConfigureRequestEvent, ConfigureWindowAux,
-            ConnectionExt, CreateWindowAux, EventMask, MapRequestEvent, MotionNotifyEvent,
-            UnmapNotifyEvent, Window, WindowClass,
+            ConnectionExt, CreateWindowAux, EventMask, MapNotifyEvent, MapRequestEvent,
+            MotionNotifyEvent, UnmapNotifyEvent, Window, WindowClass,
         },
         Event,
     },
     COPY_DEPTH_FROM_PARENT,
 };
 
-use crate::model::client::{container::ClientContainer, drag::DragState, geometry::ClientGeometry};
+use crate::model::client::{drag::DragState, geometry::ClientGeometry};
 
 use super::{client_executor::ClientExecutor, session::X11Session};
 
 /// Handler processes X11 events and dispatches them to the appropriate client.
 pub struct Handler<'a> {
     session: &'a X11Session,
-    client_container: ClientContainer<Window>,
-
     drag_state: DragState<Window>,
+    client_exec: ClientExecutor<'a>,
 }
 
 impl<'a> Handler<'a> {
@@ -28,7 +27,7 @@ impl<'a> Handler<'a> {
         Self {
             session,
             drag_state: DragState::None,
-            client_container: ClientContainer::new(),
+            client_exec: ClientExecutor::new(session),
         }
     }
 
@@ -39,6 +38,7 @@ impl<'a> Handler<'a> {
             }
             Event::ConfigureRequest(event) => self.handle_configure_request(event)?,
             Event::MapRequest(event) => self.handle_map_request(event)?,
+            Event::MapNotify(event) => self.handle_map_notify(event)?,
             Event::ButtonPress(event) => self.handle_button_press(event)?,
             Event::ButtonRelease(event) => self.handle_button_release(event)?,
             Event::MotionNotify(event) => self.handle_motion_notify(event)?,
@@ -48,11 +48,32 @@ impl<'a> Handler<'a> {
         Ok(())
     }
 
+    fn handle_map_notify(
+        &mut self,
+        event: MapNotifyEvent,
+    ) -> Result<(), Box<dyn std::error::Error>> {
+        let client = if let Some(client) = self
+            .client_exec
+            .container()
+            .query_client_from_app(event.window)
+        {
+            client
+        } else {
+            return Ok(());
+        };
+
+        self.client_exec.raise_client(client)?;
+        Ok(())
+    }
+
     fn handle_unmap_notify(
         &mut self,
         event: UnmapNotifyEvent,
     ) -> Result<(), Box<dyn std::error::Error>> {
-        let client = if let Some(client) = self.client_container.query_client_from_app(event.window)
+        let client = if let Some(client) = self
+            .client_exec
+            .container()
+            .query_client_from_app(event.window)
         {
             client
         } else {
@@ -64,7 +85,7 @@ impl<'a> Handler<'a> {
             Ok(())
         })?;
 
-        self.client_container.remove_client(client);
+        self.client_exec.container_as_mut().remove_client(client);
         Ok(())
     }
 
@@ -73,20 +94,17 @@ impl<'a> Handler<'a> {
         event: ButtonPressEvent,
     ) -> Result<(), Box<dyn std::error::Error>> {
         // get client if the window is a frame
-        let client =
-            if let Some(client) = self.client_container.query_client_from_frame(event.event) {
-                client
-            } else {
-                return Ok(());
-            };
-
-        let client_exec = ClientExecutor::new(self.session);
-        let previous_client = if let DragState::Dragged(drag_state) = &self.drag_state {
-            Some(drag_state.client())
+        let client = if let Some(client) = self
+            .client_exec
+            .container()
+            .query_client_from_frame(event.event)
+        {
+            client
         } else {
-            None
+            return Ok(());
         };
-        client_exec.focus_client(client, previous_client)?;
+
+        self.client_exec.raise_client(client)?;
 
         // save the start position of pointer for dragging
         let last_root_position = (event.root_x as i32, event.root_y as i32);
@@ -107,12 +125,15 @@ impl<'a> Handler<'a> {
         event: MotionNotifyEvent,
     ) -> Result<(), Box<dyn std::error::Error>> {
         // get client if the window is a frame
-        let client =
-            if let Some(client) = self.client_container.query_client_from_frame(event.event) {
-                client
-            } else {
-                return Ok(());
-            };
+        let client = if let Some(client) = self
+            .client_exec
+            .container()
+            .query_client_from_frame(event.event)
+        {
+            client
+        } else {
+            return Ok(());
+        };
 
         let drag_state = if let Some(drag_state) = self.drag_state.parse_with_check_dragging(client)
         {
@@ -127,13 +148,15 @@ impl<'a> Handler<'a> {
             root_position.1 - drag_state.last_root_position().1,
         );
 
-        let client_exec = ClientExecutor::new(self.session);
-
-        let client_geometry = client_exec
+        let client_geometry = self
+            .client_exec
             .get_client_geometry(client)?
             .move_relative(diff_position.0, diff_position.1);
 
-        self.execute_grabbed(|| client_exec.apply_client_geometry(client, client_geometry))?;
+        self.execute_grabbed(|| {
+            self.client_exec
+                .apply_client_geometry(client, client_geometry)
+        })?;
 
         self.drag_state = DragState::new_as_dragging(client, root_position);
         Ok(())
@@ -150,9 +173,12 @@ impl<'a> Handler<'a> {
             .connection()
             .configure_window(event.window, &values)?;
 
-        if let Some(client) = self.client_container.query_client_from_app(event.window) {
+        if let Some(client) = self
+            .client_exec
+            .container()
+            .query_client_from_app(event.window)
+        {
             // if the window is binded to a frame, move the frame and configure the window
-            let client_exec = ClientExecutor::new(self.session);
             let client_geometry = ClientGeometry::from_app(
                 event.x as i32,
                 event.y as i32,
@@ -162,7 +188,10 @@ impl<'a> Handler<'a> {
                 self.session.config().titlebar_height,
             );
 
-            self.execute_grabbed(|| client_exec.apply_client_geometry(client, client_geometry))?;
+            self.execute_grabbed(|| {
+                self.client_exec
+                    .apply_client_geometry(client, client_geometry)
+            })?;
         }
         Ok(())
     }
@@ -195,7 +224,7 @@ impl<'a> Handler<'a> {
             .get_geometry(event.window)?
             .reply()?;
 
-        let client_geometry = ClientGeometry::from_app(
+        let client_geometry: ClientGeometry = ClientGeometry::from_app(
             original_geometry.x as i32 + self.session.config().border_width as i32,
             original_geometry.y as i32
                 + self.session.config().titlebar_height as i32
@@ -241,7 +270,9 @@ impl<'a> Handler<'a> {
         })?;
 
         // add client to container
-        self.client_container.add_client(event.window, frame);
+        self.client_exec
+            .container_as_mut()
+            .add_client(event.window, frame);
 
         Ok(())
     }

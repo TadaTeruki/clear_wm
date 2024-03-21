@@ -13,10 +13,6 @@ impl<WinId> DragDetail<WinId>
 where
     WinId: Copy + Eq,
 {
-    pub fn client(&self) -> Client<WinId> {
-        self.client
-    }
-
     pub fn last_root_position(&self) -> (i32, i32) {
         self.last_root_position
     }
