@@ -143,8 +143,7 @@ impl<'a> Handler<'a> {
                 event.y as i32,
                 event.width as u32,
                 event.height as u32,
-                self.session.config().border_width,
-                self.session.config().titlebar_height,
+                self.session.config().frame_config,
             );
 
             self.execute_grabbed(|| {
@@ -183,15 +182,16 @@ impl<'a> Handler<'a> {
             .get_geometry(event.window)?
             .reply()?;
 
+        let frame_config = self.session.config().frame_config;
+
         let client_geometry: ClientGeometry = ClientGeometry::from_app(
-            original_geometry.x as i32 + self.session.config().border_width as i32,
+            original_geometry.x as i32 + frame_config.border_width as i32,
             original_geometry.y as i32
-                + self.session.config().titlebar_height as i32
-                + self.session.config().border_width as i32,
+                + frame_config.titlebar_height as i32
+                + frame_config.border_width as i32,
             original_geometry.width as u32,
             original_geometry.height as u32,
-            self.session.config().border_width,
-            self.session.config().titlebar_height,
+            frame_config,
         );
 
         let app_geometry = client_geometry.parse_as_app();

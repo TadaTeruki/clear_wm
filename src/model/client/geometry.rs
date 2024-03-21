@@ -1,3 +1,5 @@
+use crate::model::config::FrameConfig;
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 
 pub struct Geometry {
@@ -10,8 +12,24 @@ pub struct Geometry {
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct ClientGeometry {
     geometry: Geometry,
-    border_width: u32,
-    titlebar_height: u32,
+    frame_config: FrameConfig,
+}
+
+pub enum ClientResizeVertical {
+    Top,
+    Bottom,
+    None,
+}
+
+pub enum ClientResizeHorizontal {
+    Left,
+    Right,
+    None,
+}
+
+pub enum ClientControl {
+    Move,
+    Resize(ClientResizeVertical, ClientResizeHorizontal),
 }
 
 impl ClientGeometry {
@@ -20,8 +38,7 @@ impl ClientGeometry {
         y: i32,
         width: u32,
         height: u32,
-        border_width: u32,
-        titlebar_height: u32,
+        frame_config: FrameConfig,
     ) -> ClientGeometry {
         ClientGeometry {
             geometry: Geometry {
@@ -30,8 +47,7 @@ impl ClientGeometry {
                 width,
                 height,
             },
-            border_width,
-            titlebar_height,
+            frame_config,
         }
     }
 
@@ -41,18 +57,16 @@ impl ClientGeometry {
         y: i32,
         width: u32,
         height: u32,
-        border_width: u32,
-        titlebar_height: u32,
+        frame_config: FrameConfig,
     ) -> ClientGeometry {
         ClientGeometry {
             geometry: Geometry {
-                x: x + border_width as i32,
-                y: y + (border_width + titlebar_height) as i32,
-                width: width - 2 * border_width,
-                height: height - (2 * border_width + titlebar_height),
+                x: x + frame_config.border_width as i32,
+                y: y + (frame_config.border_width + frame_config.titlebar_height) as i32,
+                width: width - 2 * frame_config.border_width,
+                height: height - (2 * frame_config.border_width + frame_config.titlebar_height),
             },
-            border_width,
-            titlebar_height,
+            frame_config,
         }
     }
 
@@ -67,10 +81,12 @@ impl ClientGeometry {
 
     pub fn parse_as_frame(&self) -> Geometry {
         Geometry {
-            x: self.geometry.x - self.border_width as i32,
-            y: self.geometry.y - (self.border_width + self.titlebar_height) as i32,
-            width: self.geometry.width + 2 * self.border_width,
-            height: self.geometry.height + (2 * self.border_width + self.titlebar_height),
+            x: self.geometry.x - self.frame_config.border_width as i32,
+            y: self.geometry.y
+                - (self.frame_config.border_width + self.frame_config.titlebar_height) as i32,
+            width: self.geometry.width + 2 * self.frame_config.border_width,
+            height: self.geometry.height
+                + (2 * self.frame_config.border_width + self.frame_config.titlebar_height),
         }
     }
 
@@ -82,8 +98,7 @@ impl ClientGeometry {
                 width: self.geometry.width,
                 height: self.geometry.height,
             },
-            border_width: self.border_width,
-            titlebar_height: self.titlebar_height,
+            frame_config: self.frame_config,
         }
     }
 }
@@ -94,7 +109,12 @@ mod tests {
 
     #[test]
     fn test_client_geometry() {
-        let client_geom = ClientGeometry::from_app(0, 0, 100, 100, 4, 20);
+        let frame_config = FrameConfig {
+            border_width: 4,
+            titlebar_height: 20,
+            corner_radius: 6,
+        };
+        let client_geom = ClientGeometry::from_app(0, 0, 100, 100, frame_config);
 
         assert_eq!(
             client_geom.parse_as_frame(),
@@ -108,10 +128,10 @@ mod tests {
 
         assert_eq!(
             client_geom.move_relative(10, 10),
-            ClientGeometry::from_app(10, 10, 100, 100, 4, 20)
+            ClientGeometry::from_app(10, 10, 100, 100, frame_config)
         );
 
-        let client_geom = ClientGeometry::from_frame(0, 0, 100, 100, 4, 20);
+        let client_geom = ClientGeometry::from_frame(0, 0, 100, 100, frame_config);
 
         assert_eq!(
             client_geom.parse_as_app(),
@@ -125,7 +145,7 @@ mod tests {
 
         assert_eq!(
             client_geom.move_relative(10, 10),
-            ClientGeometry::from_frame(10, 10, 100, 100, 4, 20)
+            ClientGeometry::from_frame(10, 10, 100, 100, frame_config)
         );
     }
 }

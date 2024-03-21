@@ -79,8 +79,7 @@ impl<'a> ClientExecutor<'a> {
             x11_app_geometry.y as i32,
             x11_app_geometry.width as u32,
             x11_app_geometry.height as u32,
-            self.session.config().border_width,
-            self.session.config().titlebar_height,
+            self.session.config().frame_config,
         ))
     }
 
