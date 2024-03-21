@@ -48,47 +48,6 @@ impl<'a> Handler<'a> {
         Ok(())
     }
 
-    fn handle_map_notify(
-        &mut self,
-        event: MapNotifyEvent,
-    ) -> Result<(), Box<dyn std::error::Error>> {
-        let client = if let Some(client) = self
-            .client_exec
-            .container()
-            .query_client_from_app(event.window)
-        {
-            client
-        } else {
-            return Ok(());
-        };
-
-        self.client_exec.raise_client(client)?;
-        Ok(())
-    }
-
-    fn handle_unmap_notify(
-        &mut self,
-        event: UnmapNotifyEvent,
-    ) -> Result<(), Box<dyn std::error::Error>> {
-        let client = if let Some(client) = self
-            .client_exec
-            .container()
-            .query_client_from_app(event.window)
-        {
-            client
-        } else {
-            return Ok(());
-        };
-
-        self.execute_grabbed(|| {
-            self.session.connection().destroy_window(client.frame_id)?;
-            Ok(())
-        })?;
-
-        self.client_exec.container_as_mut().remove_client(client);
-        Ok(())
-    }
-
     fn handle_button_press(
         &mut self,
         event: ButtonPressEvent,
@@ -274,6 +233,47 @@ impl<'a> Handler<'a> {
             .container_as_mut()
             .add_client(event.window, frame);
 
+        Ok(())
+    }
+
+    fn handle_map_notify(
+        &mut self,
+        event: MapNotifyEvent,
+    ) -> Result<(), Box<dyn std::error::Error>> {
+        let client = if let Some(client) = self
+            .client_exec
+            .container()
+            .query_client_from_app(event.window)
+        {
+            client
+        } else {
+            return Ok(());
+        };
+
+        self.client_exec.raise_client(client)?;
+        Ok(())
+    }
+
+    fn handle_unmap_notify(
+        &mut self,
+        event: UnmapNotifyEvent,
+    ) -> Result<(), Box<dyn std::error::Error>> {
+        let client = if let Some(client) = self
+            .client_exec
+            .container()
+            .query_client_from_app(event.window)
+        {
+            client
+        } else {
+            return Ok(());
+        };
+
+        self.execute_grabbed(|| {
+            self.session.connection().destroy_window(client.frame_id)?;
+            Ok(())
+        })?;
+
+        self.client_exec.container_as_mut().remove_client(client);
         Ok(())
     }
 
