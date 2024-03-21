@@ -133,14 +133,12 @@ impl ClientGeometry {
                 } else {
                     None
                 }
+            } else if on_border_vertically {
+                Some((VerticalResize::Bottom, Edge::OnBorder))
+            } else if on_corner_radius_vertically {
+                Some((VerticalResize::Bottom, Edge::OnCornerRadius))
             } else {
-                if on_border_vertically {
-                    Some((VerticalResize::Bottom, Edge::OnBorder))
-                } else if on_corner_radius_vertically {
-                    Some((VerticalResize::Bottom, Edge::OnCornerRadius))
-                } else {
-                    None
-                }
+                None
             }
         };
 
@@ -158,14 +156,12 @@ impl ClientGeometry {
                 } else {
                     None
                 }
+            } else if on_border_horizontally {
+                Some((HorizontalResize::Right, Edge::OnBorder))
+            } else if on_corner_radius_horizontally {
+                Some((HorizontalResize::Right, Edge::OnCornerRadius))
             } else {
-                if on_border_horizontally {
-                    Some((HorizontalResize::Right, Edge::OnBorder))
-                } else if on_corner_radius_horizontally {
-                    Some((HorizontalResize::Right, Edge::OnCornerRadius))
-                } else {
-                    None
-                }
+                None
             }
         };
 
