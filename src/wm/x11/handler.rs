@@ -1,4 +1,3 @@
-use log::info;
 use x11rb::{
     connection::Connection,
     protocol::{
@@ -138,8 +137,6 @@ impl<'a> Handler<'a> {
             .move_relative(diff_position.0, diff_position.1);
 
         self.execute_grabbed(|| client_exec.apply_client_geometry(client, client_geometry))?;
-
-        info!("motion notify: {:?}", event);
 
         self.dragging_client = Some(DraggingClient {
             client,
