@@ -84,6 +84,10 @@ impl<'a> Handler<'a> {
             } else {
                 return Ok(());
             };
+
+        let client_exec = ClientExecutor::new(self.session);
+        client_exec.focus_client(client)?;
+
         // save the start position of pointer for dragging
         let last_root_position = (event.root_x as i32, event.root_y as i32);
         self.dragging_client = Some(DraggingClient {

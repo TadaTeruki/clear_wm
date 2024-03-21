@@ -13,6 +13,25 @@ impl<'a> ClientExecutor<'a> {
         Self { session }
     }
 
+    pub fn focus_client(&self, client: Client<Window>) -> Result<(), Box<dyn std::error::Error>> {
+        self.session.connection().set_input_focus(
+            x11rb::protocol::xproto::InputFocus::POINTER_ROOT,
+            client.app_id,
+            x11rb::CURRENT_TIME,
+        )?;
+
+        self.session.connection().configure_window(
+            client.frame_id,
+            &ConfigureWindowAux::default().stack_mode(x11rb::protocol::xproto::StackMode::ABOVE),
+        )?;
+        self.session.connection().configure_window(
+            client.app_id,
+            &ConfigureWindowAux::default().stack_mode(x11rb::protocol::xproto::StackMode::ABOVE),
+        )?;
+
+        Ok(())
+    }
+
     pub fn get_client_geometry(
         &self,
         client: Client<Window>,
