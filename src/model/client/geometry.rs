@@ -15,21 +15,30 @@ pub struct ClientGeometry {
     frame_config: FrameConfig,
 }
 
-pub enum ClientResizeVertical {
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum Edge {
+    OnBorder,
+    OnCornerRadius,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum VerticalResize {
     Top,
     Bottom,
     None,
 }
 
-pub enum ClientResizeHorizontal {
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum HorizontalResize {
     Left,
     Right,
     None,
 }
 
-pub enum ClientControl {
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum GeometryControl {
     Move,
-    Resize(ClientResizeVertical, ClientResizeHorizontal),
+    Resize(VerticalResize, HorizontalResize),
 }
 
 impl ClientGeometry {
@@ -90,15 +99,120 @@ impl ClientGeometry {
         }
     }
 
-    pub fn move_relative(&self, x: i32, y: i32) -> ClientGeometry {
+    pub fn move_relative(&self, rel_x: i32, rel_y: i32) -> ClientGeometry {
         ClientGeometry {
             geometry: Geometry {
-                x: self.geometry.x + x,
-                y: self.geometry.y + y,
+                x: self.geometry.x + rel_x,
+                y: self.geometry.y + rel_y,
                 width: self.geometry.width,
                 height: self.geometry.height,
             },
             frame_config: self.frame_config,
+        }
+    }
+
+    pub fn check_control_by_position_on_frame(
+        &self,
+        x_on_frame: i32,
+        y_on_frame: i32,
+    ) -> GeometryControl {
+        let frame_geom = self.parse_as_frame();
+
+        let vertical_control = {
+            let on_border_vertically = y_on_frame < self.frame_config.border_width as i32
+                || y_on_frame > frame_geom.height as i32 - self.frame_config.border_width as i32;
+
+            let on_corner_radius_vertically = y_on_frame < self.frame_config.corner_radius as i32
+                || y_on_frame > frame_geom.height as i32 - self.frame_config.corner_radius as i32;
+
+            if y_on_frame < (frame_geom.height / 2) as i32 {
+                if on_border_vertically {
+                    Some((VerticalResize::Top, Edge::OnBorder))
+                } else if on_corner_radius_vertically {
+                    Some((VerticalResize::Top, Edge::OnCornerRadius))
+                } else {
+                    None
+                }
+            } else {
+                if on_border_vertically {
+                    Some((VerticalResize::Bottom, Edge::OnBorder))
+                } else if on_corner_radius_vertically {
+                    Some((VerticalResize::Bottom, Edge::OnCornerRadius))
+                } else {
+                    None
+                }
+            }
+        };
+
+        let horizontal_control = {
+            let on_border_horizontally = x_on_frame < self.frame_config.border_width as i32
+                || x_on_frame > frame_geom.width as i32 - self.frame_config.border_width as i32;
+            let on_corner_radius_horizontally = x_on_frame < self.frame_config.corner_radius as i32
+                || x_on_frame > frame_geom.width as i32 - self.frame_config.corner_radius as i32;
+
+            if x_on_frame < (frame_geom.width / 2) as i32 {
+                if on_border_horizontally {
+                    Some((HorizontalResize::Left, Edge::OnBorder))
+                } else if on_corner_radius_horizontally {
+                    Some((HorizontalResize::Left, Edge::OnCornerRadius))
+                } else {
+                    None
+                }
+            } else {
+                if on_border_horizontally {
+                    Some((HorizontalResize::Right, Edge::OnBorder))
+                } else if on_corner_radius_horizontally {
+                    Some((HorizontalResize::Right, Edge::OnCornerRadius))
+                } else {
+                    None
+                }
+            }
+        };
+
+        if let (Some((vertical, _)), Some((horizontal, _))) = (vertical_control, horizontal_control)
+        {
+            GeometryControl::Resize(vertical, horizontal)
+        } else if let Some((vertical, Edge::OnBorder)) = vertical_control {
+            GeometryControl::Resize(vertical, HorizontalResize::None)
+        } else if let Some((horizontal, Edge::OnBorder)) = horizontal_control {
+            GeometryControl::Resize(VerticalResize::None, horizontal)
+        } else {
+            GeometryControl::Move
+        }
+    }
+
+    pub fn move_resize_on_control(
+        &self,
+        cursor_move_x: i32,
+        cursor_move_y: i32,
+        control: GeometryControl,
+    ) -> ClientGeometry {
+        match control {
+            GeometryControl::Move => self.move_relative(cursor_move_x, cursor_move_y),
+            GeometryControl::Resize(vertical, horizontal) => {
+                let mut new_geom = *self;
+                match vertical {
+                    VerticalResize::Top => {
+                        new_geom.geometry.y += cursor_move_y;
+                        new_geom.geometry.height -= cursor_move_y as u32;
+                    }
+                    VerticalResize::Bottom => {
+                        new_geom.geometry.height += cursor_move_y as u32;
+                    }
+                    VerticalResize::None => {}
+                }
+                match horizontal {
+                    HorizontalResize::Left => {
+                        new_geom.geometry.x += cursor_move_x;
+                        new_geom.geometry.width -= cursor_move_x as u32;
+                    }
+                    HorizontalResize::Right => {
+                        new_geom.geometry.width += cursor_move_x as u32;
+                    }
+                    HorizontalResize::None => {}
+                }
+                new_geom
+            }
         }
     }
 }
@@ -147,5 +261,146 @@ mod tests {
             client_geom.move_relative(10, 10),
             ClientGeometry::from_frame(10, 10, 100, 100, frame_config)
         );
+    }
+
+    #[test]
+    fn test_control() {
+        let frame_config = FrameConfig {
+            border_width: 4,
+            titlebar_height: 20,
+            corner_radius: 6,
+        };
+        let client_geom = ClientGeometry::from_app(0, 0, 100, 100, frame_config);
+
+        // top left
+        {
+            // on border
+            assert_eq!(
+                client_geom.check_control_by_position_on_frame(1, 1),
+                GeometryControl::Resize(VerticalResize::Top, HorizontalResize::Left)
+            );
+
+            // on corner radius
+            assert_eq!(
+                client_geom.check_control_by_position_on_frame(5, 5),
+                GeometryControl::Resize(VerticalResize::Top, HorizontalResize::Left)
+            );
+
+            // outside of corner radius
+            assert_eq!(
+                client_geom.check_control_by_position_on_frame(9, 9),
+                GeometryControl::Move
+            );
+
+            // on border but only vertical
+            assert_eq!(
+                client_geom.check_control_by_position_on_frame(9, 1),
+                GeometryControl::Resize(VerticalResize::Top, HorizontalResize::None)
+            );
+
+            // on border but only horizontal
+            assert_eq!(
+                client_geom.check_control_by_position_on_frame(1, 9),
+                GeometryControl::Resize(VerticalResize::None, HorizontalResize::Left)
+            );
+        }
+        // top right
+        {
+            // on border
+            assert_eq!(
+                client_geom.check_control_by_position_on_frame(107, 1),
+                GeometryControl::Resize(VerticalResize::Top, HorizontalResize::Right)
+            );
+
+            // on corner radius
+            assert_eq!(
+                client_geom.check_control_by_position_on_frame(103, 5),
+                GeometryControl::Resize(VerticalResize::Top, HorizontalResize::Right)
+            );
+
+            // outside of corner radius
+            assert_eq!(
+                client_geom.check_control_by_position_on_frame(99, 9),
+                GeometryControl::Move
+            );
+
+            // on border but only vertical
+            assert_eq!(
+                client_geom.check_control_by_position_on_frame(99, 1),
+                GeometryControl::Resize(VerticalResize::Top, HorizontalResize::None)
+            );
+
+            // on border but only horizontal
+            assert_eq!(
+                client_geom.check_control_by_position_on_frame(107, 9),
+                GeometryControl::Resize(VerticalResize::None, HorizontalResize::Right)
+            );
+        }
+
+        // bottom left
+        {
+            // on border
+            assert_eq!(
+                client_geom.check_control_by_position_on_frame(1, 127),
+                GeometryControl::Resize(VerticalResize::Bottom, HorizontalResize::Left)
+            );
+
+            // on corner radius
+            assert_eq!(
+                client_geom.check_control_by_position_on_frame(5, 123),
+                GeometryControl::Resize(VerticalResize::Bottom, HorizontalResize::Left)
+            );
+
+            // outside of corner radius
+            assert_eq!(
+                client_geom.check_control_by_position_on_frame(9, 119),
+                GeometryControl::Move
+            );
+
+            // on border but only vertical
+            assert_eq!(
+                client_geom.check_control_by_position_on_frame(9, 127),
+                GeometryControl::Resize(VerticalResize::Bottom, HorizontalResize::None)
+            );
+
+            // on border but only horizontal
+            assert_eq!(
+                client_geom.check_control_by_position_on_frame(1, 119),
+                GeometryControl::Resize(VerticalResize::None, HorizontalResize::Left)
+            );
+        }
+
+        // bottom right
+        {
+            // on border
+            assert_eq!(
+                client_geom.check_control_by_position_on_frame(107, 127),
+                GeometryControl::Resize(VerticalResize::Bottom, HorizontalResize::Right)
+            );
+
+            // on corner radius
+            assert_eq!(
+                client_geom.check_control_by_position_on_frame(103, 123),
+                GeometryControl::Resize(VerticalResize::Bottom, HorizontalResize::Right)
+            );
+
+            // outside of corner radius
+            assert_eq!(
+                client_geom.check_control_by_position_on_frame(99, 119),
+                GeometryControl::Move
+            );
+
+            // on border but only vertical
+            assert_eq!(
+                client_geom.check_control_by_position_on_frame(99, 127),
+                GeometryControl::Resize(VerticalResize::Bottom, HorizontalResize::None)
+            );
+
+            // on border but only horizontal
+            assert_eq!(
+                client_geom.check_control_by_position_on_frame(107, 119),
+                GeometryControl::Resize(VerticalResize::None, HorizontalResize::Right)
+            );
+        }
     }
 }

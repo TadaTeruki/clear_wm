@@ -65,9 +65,14 @@ impl<'a> Handler<'a> {
 
         self.client_exec.raise_client(client)?;
 
-        // save the start position of pointer for dragging
+        let geometry_control = self
+            .client_exec
+            .get_client_geometry(client)?
+            .check_control_by_position_on_frame(event.event_x as i32, event.event_y as i32);
+
+        // save the start position of cursor for dragging
         let last_root_position = (event.root_x as i32, event.root_y as i32);
-        self.drag_state = DragState::new_as_dragging(client, last_root_position);
+        self.drag_state = DragState::new_as_dragging(client, geometry_control, last_root_position);
         Ok(())
     }
 
@@ -110,14 +115,18 @@ impl<'a> Handler<'a> {
         let client_geometry = self
             .client_exec
             .get_client_geometry(client)?
-            .move_relative(diff_position.0, diff_position.1);
+            .move_resize_on_control(
+                diff_position.0,
+                diff_position.1,
+                drag_state.geometry_control(),
+            );
 
         self.execute_grabbed(|| {
             self.client_exec
                 .apply_client_geometry(client, client_geometry)
         })?;
 
-        self.drag_state = DragState::new_as_dragging(client, root_position);
+        self.drag_state.change_root_position(root_position);
         Ok(())
     }
 

@@ -14,9 +14,9 @@ impl Default for WindowManagerConfig {
     fn default() -> Self {
         Self {
             frame_config: FrameConfig {
-                border_width: 1,
+                border_width: 18,
                 titlebar_height: 20,
-                corner_radius: 5,
+                corner_radius: 24,
             },
         }
     }
