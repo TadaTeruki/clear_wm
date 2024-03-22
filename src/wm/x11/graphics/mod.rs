@@ -83,13 +83,6 @@ impl GraphicsVisual {
         width: i32,
         height: i32,
     ) -> Result<CairoSurface, Box<dyn std::error::Error>> {
-        log::info!(
-            "Creating cairo surface for window {} with size {}x{}",
-            window,
-            width,
-            height
-        );
-
         let cairo_connection = unsafe {
             cairo::XCBConnection::from_raw_none(session.connection().get_raw_xcb_connection() as _)
         };

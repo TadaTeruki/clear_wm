@@ -10,6 +10,8 @@ pub struct ClientExecutor<'a> {
     session: &'a X11Session,
     client_container: ClientContainer<Window>,
     surface_container: ClientMap<Window, CairoSurface>,
+    draw_queue: ClientMap<Window, ()>,
+    move_resize_queue: ClientMap<Window, ClientGeometry>,
 }
 
 impl<'a> ClientExecutor<'a> {
@@ -18,6 +20,8 @@ impl<'a> ClientExecutor<'a> {
             session,
             client_container: ClientContainer::new(),
             surface_container: ClientMap::new(),
+            draw_queue: ClientMap::new(),
+            move_resize_queue: ClientMap::new(),
         }
     }
 
@@ -49,24 +53,11 @@ impl<'a> ClientExecutor<'a> {
         Ok(())
     }
 
-    pub fn draw_client(&self, client: Client<Window>) -> Result<(), Box<dyn std::error::Error>> {
-        let surface = if let Some(surface) = self.surface_container.query(client) {
-            surface
-        } else {
-            return Ok(());
-        };
-
-        let ctx = surface.context()?;
-        ctx.set_source_rgba(0.3, 1.0, 0.5, 0.5);
-        ctx.paint()?;
-        surface.flush();
-
-        Ok(())
-    }
-
     pub fn remove_client(&mut self, client: Client<Window>) {
         self.client_container.remove_client(client);
         self.surface_container.remove(client);
+        self.draw_queue.remove(client);
+        self.move_resize_queue.remove(client);
     }
 
     fn get_focused_client(&self) -> Result<Option<Client<Window>>, Box<dyn std::error::Error>> {
@@ -127,7 +118,84 @@ impl<'a> ClientExecutor<'a> {
         ))
     }
 
-    pub fn apply_client_geometry(
+    pub fn flush_queued(&mut self) -> Result<(), Box<dyn std::error::Error>> {
+        for (client, client_geometry) in self.move_resize_queue.iter() {
+            self.move_resize_with_client_geometry(*client, *client_geometry)?;
+        }
+
+        for (client, _) in self.draw_queue.iter() {
+            self.draw_client(*client)?;
+        }
+        self.draw_queue.clear();
+        self.move_resize_queue.clear();
+        Ok(())
+    }
+
+    pub fn queue_draw(&mut self, client: Client<Window>) {
+        self.draw_queue.insert(client, ());
+    }
+
+    fn draw_client(&self, client: Client<Window>) -> Result<(), Box<dyn std::error::Error>> {
+        let surface = if let Some(surface) = self.surface_container.query(client) {
+            surface
+        } else {
+            return Ok(());
+        };
+
+        let ctx = surface.context()?;
+        ctx.set_operator(cairo::Operator::Source);
+        ctx.set_source_rgba(0.3, 1.0, 0.5, 0.5);
+        ctx.paint()?;
+        surface.flush();
+
+        Ok(())
+    }
+
+    pub fn apply_geometry(
+        &mut self,
+        client: Client<Window>,
+        client_geometry: ClientGeometry,
+        can_be_resized: bool,
+    ) -> Result<(), Box<dyn std::error::Error>> {
+        if can_be_resized {
+            self.queue_move_resize(client, client_geometry);
+        } else {
+            self.move_with_client_geometry(client, client_geometry)?;
+        }
+        Ok(())
+    }
+
+    fn queue_move_resize(&mut self, client: Client<Window>, client_geometry: ClientGeometry) {
+        self.move_resize_queue.insert(client, client_geometry);
+        self.queue_draw(client);
+    }
+
+    fn move_with_client_geometry(
+        &self,
+        client: Client<Window>,
+        client_geometry: ClientGeometry,
+    ) -> Result<(), Box<dyn std::error::Error>> {
+        let app_geometry = client_geometry.parse_as_app();
+        let frame_geometry = client_geometry.parse_as_frame();
+
+        self.session.connection().configure_window(
+            client.app_id,
+            &ConfigureWindowAux::default()
+                .x(app_geometry.x)
+                .y(app_geometry.y),
+        )?;
+
+        self.session.connection().configure_window(
+            client.frame_id,
+            &ConfigureWindowAux::default()
+                .x(frame_geometry.x)
+                .y(frame_geometry.y),
+        )?;
+
+        Ok(())
+    }
+
+    fn move_resize_with_client_geometry(
         &self,
         client: Client<Window>,
         client_geometry: ClientGeometry,

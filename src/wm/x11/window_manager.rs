@@ -30,8 +30,12 @@ impl<'a> X11WindowManager<'a> {
 
         loop {
             self.session.connection().flush()?;
-            let event = self.session.connection().wait_for_event()?;
-            self.handler.handle_event(event)?;
+            let mut event_option = Some(self.session.connection().wait_for_event()?);
+            while let Some(event) = event_option {
+                self.handler.handle_event(event)?;
+                event_option = self.session.connection().poll_for_event()?;
+            }
+            self.handler.flush_queued()?;
         }
     }
 }

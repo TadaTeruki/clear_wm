@@ -11,6 +11,8 @@ use x11rb::{
     },
 };
 
+use log::info;
+
 use crate::model::client::{drag::DragState, geometry::ClientGeometry};
 
 use super::{client_executor::ClientExecutor, session::X11Session};
@@ -32,7 +34,7 @@ impl<'a> Handler<'a> {
     }
 
     pub fn handle_event(&mut self, event: Event) -> Result<(), Box<dyn std::error::Error>> {
-        log::info!("event: {:?}", event);
+        info!("event: {:?}", event);
         match event {
             Event::ClientMessage(_) => {
                 return Ok(());
@@ -50,7 +52,12 @@ impl<'a> Handler<'a> {
         Ok(())
     }
 
-    fn handle_expose(&self, event: ExposeEvent) -> Result<(), Box<dyn std::error::Error>> {
+    pub fn flush_queued(&mut self) -> Result<(), Box<dyn std::error::Error>> {
+        self.client_exec.flush_queued()?;
+        Ok(())
+    }
+
+    fn handle_expose(&mut self, event: ExposeEvent) -> Result<(), Box<dyn std::error::Error>> {
         // get client if the window is a frame
         let client = if let Some(client) = self
             .client_exec
@@ -62,7 +69,7 @@ impl<'a> Handler<'a> {
             return Ok(());
         };
 
-        self.client_exec.draw_client(client)?;
+        self.client_exec.queue_draw(client);
         Ok(())
     }
 
@@ -139,22 +146,24 @@ impl<'a> Handler<'a> {
                 drag_state.geometry_control(),
             );
 
-        self.execute_grabbed(|| {
-            self.client_exec
-                .apply_client_geometry(client, client_geometry)
-        })?;
+        self.client_exec.apply_geometry(
+            client,
+            client_geometry,
+            drag_state.geometry_control().is_resize(),
+        )?;
 
         self.drag_state.change_root_position(root_position);
         Ok(())
     }
 
     fn handle_configure_request(
-        &self,
+        &mut self,
         event: ConfigureRequestEvent,
     ) -> Result<(), Box<dyn std::error::Error>> {
         // just configure the window
         let values: ConfigureWindowAux =
             ConfigureWindowAux::from_configure_request(&event).stack_mode(None);
+
         self.session
             .connection()
             .configure_window(event.window, &values)?;
@@ -172,11 +181,9 @@ impl<'a> Handler<'a> {
                 event.height as u32,
                 self.session.config().frame_config,
             );
-
-            self.execute_grabbed(|| {
-                self.client_exec
-                    .apply_client_geometry(client, client_geometry)
-            })?;
+            let resized = values.width.is_some() || values.height.is_some();
+            self.client_exec
+                .apply_geometry(client, client_geometry, resized)?;
         }
         Ok(())
     }
@@ -227,8 +234,6 @@ impl<'a> Handler<'a> {
 
         let frame_geometry = client_geometry.parse_as_frame();
 
-        log::info!("creating window...");
-
         self.session.connection().create_window(
             self.session.cairo_session().depth(),
             frame,
@@ -243,23 +248,18 @@ impl<'a> Handler<'a> {
             &frame_values,
         )?;
 
-        self.execute_grabbed(|| {
-            self.session.connection().configure_window(
-                event.window,
-                &ConfigureWindowAux::default()
-                    .stack_mode(x11rb::protocol::xproto::StackMode::ABOVE)
-                    .x(app_geometry.x)
-                    .y(app_geometry.y)
-                    .width(app_geometry.width)
-                    .height(app_geometry.height),
-            )?;
+        self.session.connection().configure_window(
+            event.window,
+            &ConfigureWindowAux::default()
+                .stack_mode(x11rb::protocol::xproto::StackMode::ABOVE)
+                .x(app_geometry.x)
+                .y(app_geometry.y)
+                .width(app_geometry.width)
+                .height(app_geometry.height),
+        )?;
 
-            self.session.connection().map_window(frame)?;
-            self.session.connection().map_window(event.window)?;
-            Ok(())
-        })?;
-
-        log::info!("created window");
+        self.session.connection().map_window(frame)?;
+        self.session.connection().map_window(event.window)?;
 
         self.client_exec
             .add_client(event.window, frame, client_geometry)?;
@@ -299,24 +299,9 @@ impl<'a> Handler<'a> {
             return Ok(());
         };
 
-        self.execute_grabbed(|| {
-            self.session.connection().destroy_window(client.frame_id)?;
-            Ok(())
-        })?;
-
-        //self.client_exec.container_as_mut().remove_client(client);
+        self.session.connection().destroy_window(client.frame_id)?;
 
         self.client_exec.remove_client(client);
         Ok(())
-    }
-
-    fn execute_grabbed<T, F: FnOnce() -> Result<T, Box<dyn std::error::Error>>>(
-        &self,
-        f: F,
-    ) -> Result<T, Box<dyn std::error::Error>> {
-        self.session.connection().grab_server()?;
-        let result = f();
-        self.session.connection().ungrab_server()?;
-        result
     }
 }

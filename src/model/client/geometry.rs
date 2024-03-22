@@ -213,6 +213,15 @@ impl ClientGeometry {
     }
 }
 
+impl GeometryControl {
+    pub fn is_resize(&self) -> bool {
+        match self {
+            GeometryControl::Resize(_, _) => true,
+            _ => false,
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

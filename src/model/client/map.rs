@@ -16,7 +16,12 @@ where
     }
 
     pub fn insert(&mut self, client: Client<WinId>, item: T) {
-        self.item.push((client, item));
+        // if already exists, update
+        if let Some((_, i)) = self.item.iter_mut().find(|(c, _)| c == &client) {
+            *i = item;
+        } else {
+            self.item.push((client, item));
+        }
     }
 
     pub fn query(&self, client: Client<WinId>) -> Option<&T> {
@@ -28,6 +33,14 @@ where
 
     pub fn remove(&mut self, client: Client<WinId>) {
         self.item.retain(|(c, _)| c != &client);
+    }
+
+    pub fn iter(&self) -> impl Iterator<Item = &(Client<WinId>, T)> {
+        self.item.iter()
+    }
+
+    pub fn clear(&mut self) {
+        self.item.clear();
     }
 }
 
