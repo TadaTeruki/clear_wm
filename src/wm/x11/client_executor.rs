@@ -154,6 +154,10 @@ impl<'a> ClientExecutor<'a> {
                 .height(frame_geometry.height),
         )?;
 
+        if let Some(surface) = self.surface_container.query(client) {
+            surface.resize(frame_geometry.width as i32, frame_geometry.height as i32)?;
+        }
+
         Ok(())
     }
 }

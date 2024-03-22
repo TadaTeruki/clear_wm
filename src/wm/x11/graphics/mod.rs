@@ -112,7 +112,7 @@ impl CairoSurface {
         Ok(cairo::Context::new(&self.surface)?)
     }
 
-    pub fn resize(&mut self, width: i32, height: i32) -> Result<(), Box<dyn std::error::Error>> {
+    pub fn resize(&self, width: i32, height: i32) -> Result<(), Box<dyn std::error::Error>> {
         Ok(self.surface.set_size(width, height)?)
     }
 
