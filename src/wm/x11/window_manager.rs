@@ -3,7 +3,7 @@ use x11rb::{
     protocol::xproto::{ChangeWindowAttributesAux, ConnectionExt, EventMask},
 };
 
-use super::{handler::Handler, session::X11Session};
+use super::{cairo::CairoSession, handler::Handler, session::X11Session};
 
 /// X11WindowManager performs the main event loop and dispatches events to the handler.
 pub struct X11WindowManager<'a> {
@@ -12,9 +12,12 @@ pub struct X11WindowManager<'a> {
 }
 
 impl<'a> X11WindowManager<'a> {
-    pub fn new(session: &'a X11Session) -> Self {
-        let handler = Handler::new(session);
-        Self { session, handler }
+    pub fn new(
+        session: &'a X11Session,
+        cairo_session: CairoSession,
+    ) -> Result<Self, Box<dyn std::error::Error>> {
+        let handler = Handler::new(session, cairo_session);
+        Ok(Self { session, handler })
     }
 
     pub fn start(&mut self) -> Result<(), Box<dyn std::error::Error>> {

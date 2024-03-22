@@ -1,19 +1,28 @@
 use x11rb::protocol::xproto::{ConfigureWindowAux, ConnectionExt, Window};
 
-use crate::model::client::{container::ClientContainer, geometry::ClientGeometry, Client};
+use crate::model::client::{
+    container::ClientContainer, geometry::ClientGeometry, map::ClientMap, Client,
+};
 
-use super::session::X11Session;
+use super::{
+    cairo::{CairoSession, CairoSurface},
+    session::X11Session,
+};
 
 pub struct ClientExecutor<'a> {
     session: &'a X11Session,
+    cairo_session: CairoSession,
     client_container: ClientContainer<Window>,
+    surface_container: ClientMap<Window, CairoSurface>,
 }
 
 impl<'a> ClientExecutor<'a> {
-    pub fn new(session: &'a X11Session) -> Self {
+    pub fn new(session: &'a X11Session, cairo_session: CairoSession) -> Self {
         Self {
             session,
+            cairo_session,
             client_container: ClientContainer::new(),
+            surface_container: ClientMap::new(),
         }
     }
 
@@ -21,8 +30,34 @@ impl<'a> ClientExecutor<'a> {
         &self.client_container
     }
 
-    pub fn container_as_mut(&mut self) -> &mut ClientContainer<Window> {
-        &mut self.client_container
+    pub fn cairo_session(&self) -> &CairoSession {
+        &self.cairo_session
+    }
+
+    pub fn add_client(
+        &mut self,
+        app_id: Window,
+        frame_id: Window,
+        client_geometry: ClientGeometry,
+    ) -> Result<(), Box<dyn std::error::Error>> {
+        let frame_geometry = client_geometry.parse_as_frame();
+        let surface = self.cairo_session.create_cairo_surface_for_window(
+            self.session,
+            frame_id,
+            frame_geometry.width as i32,
+            frame_geometry.height as i32,
+        )?;
+
+        let client = self.client_container.add_client(app_id, frame_id);
+
+        self.surface_container.insert(client, surface);
+
+        Ok(())
+    }
+
+    pub fn remove_client(&mut self, client: Client<Window>) {
+        self.client_container.remove_client(client);
+        self.surface_container.remove(client);
     }
 
     fn get_focused_client(&self) -> Result<Option<Client<Window>>, Box<dyn std::error::Error>> {

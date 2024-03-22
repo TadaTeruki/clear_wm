@@ -2,18 +2,17 @@ use x11rb::{
     connection::Connection,
     protocol::{
         xproto::{
-            ButtonPressEvent, ButtonReleaseEvent, ConfigureRequestEvent, ConfigureWindowAux,
-            ConnectionExt, CreateWindowAux, EventMask, MapNotifyEvent, MapRequestEvent,
-            MotionNotifyEvent, UnmapNotifyEvent, Window, WindowClass,
+            ButtonPressEvent, ButtonReleaseEvent, ColormapAlloc, ConfigureRequestEvent,
+            ConfigureWindowAux, ConnectionExt, CreateWindowAux, EventMask, MapNotifyEvent,
+            MapRequestEvent, MotionNotifyEvent, UnmapNotifyEvent, Window, WindowClass,
         },
         Event,
     },
-    COPY_DEPTH_FROM_PARENT,
 };
 
 use crate::model::client::{drag::DragState, geometry::ClientGeometry};
 
-use super::{client_executor::ClientExecutor, session::X11Session};
+use super::{cairo::CairoSession, client_executor::ClientExecutor, session::X11Session};
 
 /// Handler processes X11 events and dispatches them to the appropriate client.
 pub struct Handler<'a> {
@@ -23,15 +22,16 @@ pub struct Handler<'a> {
 }
 
 impl<'a> Handler<'a> {
-    pub fn new(session: &'a X11Session) -> Self {
+    pub fn new(session: &'a X11Session, cairo_session: CairoSession) -> Self {
         Self {
             session,
             drag_state: DragState::None,
-            client_exec: ClientExecutor::new(session),
+            client_exec: ClientExecutor::new(session, cairo_session),
         }
     }
 
     pub fn handle_event(&mut self, event: Event) -> Result<(), Box<dyn std::error::Error>> {
+        log::info!("event: {:?}", event);
         match event {
             Event::ClientMessage(_) => {
                 return Ok(());
@@ -167,12 +167,16 @@ impl<'a> Handler<'a> {
         &mut self,
         event: MapRequestEvent,
     ) -> Result<(), Box<dyn std::error::Error>> {
-        let color = {
-            let min_background_color = 0x666666;
-            let color_interval = 5;
-            let color_step = 0x111111;
-            min_background_color + (event.window % color_interval) * color_step
-        };
+        let frame = self.session.connection().generate_id()?;
+
+        let frame_colormap = self.session.connection().generate_id()?;
+
+        self.session.connection().create_colormap(
+            ColormapAlloc::NONE,
+            frame_colormap,
+            self.session.screen().root,
+            self.client_exec.cairo_session().visual_type().visual_id,
+        )?;
 
         let frame_values = CreateWindowAux::default()
             .event_mask(
@@ -181,9 +185,9 @@ impl<'a> Handler<'a> {
                     | EventMask::POINTER_MOTION
                     | EventMask::EXPOSURE,
             )
-            .background_pixel(color);
-
-        let frame = self.session.connection().generate_id()?;
+            .border_pixel(0)
+            .background_pixel(0)
+            .colormap(frame_colormap);
 
         let original_geometry = self
             .session
@@ -205,8 +209,10 @@ impl<'a> Handler<'a> {
 
         let frame_geometry = client_geometry.parse_as_frame();
 
+        log::info!("creating window...");
+
         self.session.connection().create_window(
-            COPY_DEPTH_FROM_PARENT,
+            self.client_exec.cairo_session().depth(),
             frame,
             self.session.screen().root,
             frame_geometry.x as i16,
@@ -215,7 +221,7 @@ impl<'a> Handler<'a> {
             frame_geometry.height as u16,
             0,
             WindowClass::INPUT_OUTPUT,
-            0,
+            self.client_exec.cairo_session().visual_type().visual_id,
             &frame_values,
         )?;
 
@@ -235,10 +241,10 @@ impl<'a> Handler<'a> {
             Ok(())
         })?;
 
-        // add client to container
+        log::info!("created window");
+
         self.client_exec
-            .container_as_mut()
-            .add_client(event.window, frame);
+            .add_client(event.window, frame, client_geometry)?;
 
         Ok(())
     }
@@ -280,7 +286,9 @@ impl<'a> Handler<'a> {
             Ok(())
         })?;
 
-        self.client_exec.container_as_mut().remove_client(client);
+        //self.client_exec.container_as_mut().remove_client(client);
+
+        self.client_exec.remove_client(client);
         Ok(())
     }
 
