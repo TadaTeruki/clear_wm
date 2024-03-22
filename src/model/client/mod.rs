@@ -1,6 +1,7 @@
 pub mod container;
 pub mod drag;
 pub mod geometry;
+pub mod map;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct Client<WinId>
