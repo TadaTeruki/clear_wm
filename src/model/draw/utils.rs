@@ -113,8 +113,7 @@ fn drop_shadow_corner(
     context: &cairo::Context,
     color_outer: (f64, f64, f64, f64),
     color_inner: (f64, f64, f64, f64),
-    center_x: f64,
-    center_y: f64,
+    center: (f64, f64),
     radius: f64,
     top: bool,
     left: bool,
@@ -126,7 +125,7 @@ fn drop_shadow_corner(
         (false, false) => (0.0, 0.5 * std::f64::consts::PI),
     };
 
-    let pat = RadialGradient::new(center_x, center_y, 0.0, center_x, center_y, radius);
+    let pat = RadialGradient::new(center.0, center.1, 0.0, center.0, center.1, radius);
 
     pat.add_color_stop_rgba(
         0.0,
@@ -144,14 +143,14 @@ fn drop_shadow_corner(
     );
 
     context.set_source(&pat)?;
-    context.arc(center_x, center_y, radius, start_angle, end_angle);
-    context.line_to(center_x, center_y);
+    context.arc(center.0, center.1, radius, start_angle, end_angle);
+    context.line_to(center.0, center.1);
 
     let last_point = match (top, left) {
-        (true, true) => (center_x - radius, center_y),
-        (true, false) => (center_x, center_y - radius),
-        (false, true) => (center_x, center_y + radius),
-        (false, false) => (center_x + radius, center_y),
+        (true, true) => (center.0 - radius, center.1),
+        (true, false) => (center.0, center.1 - radius),
+        (false, true) => (center.0, center.1 + radius),
+        (false, false) => (center.0 + radius, center.1),
     };
 
     context.line_to(last_point.0, last_point.1);
@@ -174,8 +173,7 @@ pub fn drop_shadow(
         context,
         color_outer,
         color_inner,
-        inner_geom.x as f64,
-        inner_geom.y as f64,
+        (inner_geom.x as f64, inner_geom.y as f64),
         border_width as f64,
         true,
         true,
@@ -186,8 +184,10 @@ pub fn drop_shadow(
         context,
         color_outer,
         color_inner,
-        inner_geom.x as f64 + inner_geom.width as f64,
-        inner_geom.y as f64,
+        (
+            inner_geom.x as f64 + inner_geom.width as f64,
+            inner_geom.y as f64,
+        ),
         border_width as f64,
         true,
         false,
@@ -198,8 +198,10 @@ pub fn drop_shadow(
         context,
         color_outer,
         color_inner,
-        inner_geom.x as f64,
-        inner_geom.y as f64 + inner_geom.height as f64,
+        (
+            inner_geom.x as f64,
+            inner_geom.y as f64 + inner_geom.height as f64,
+        ),
         border_width as f64,
         false,
         true,
@@ -210,8 +212,10 @@ pub fn drop_shadow(
         context,
         color_outer,
         color_inner,
-        inner_geom.x as f64 + inner_geom.width as f64,
-        inner_geom.y as f64 + inner_geom.height as f64,
+        (
+            inner_geom.x as f64 + inner_geom.width as f64,
+            inner_geom.y as f64 + inner_geom.height as f64,
+        ),
         border_width as f64,
         false,
         false,
