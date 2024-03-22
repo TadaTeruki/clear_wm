@@ -1,2 +1,2 @@
 pub mod client;
-mod draw;
+pub mod draw;

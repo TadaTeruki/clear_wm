@@ -1,7 +1,11 @@
 use x11rb::protocol::xproto::{ConfigureWindowAux, ConnectionExt, Window};
 
-use crate::model::client::{
-    container::ClientContainer, geometry::ClientGeometry, map::ClientMap, Client,
+use crate::model::{
+    client::{
+        container::ClientContainer, geometry::ClientGeometry, hints::ClientHints, map::ClientMap,
+        Client,
+    },
+    draw::FrameDrawContext,
 };
 
 use super::{graphics::CairoSurface, session::X11Session};
@@ -143,9 +147,11 @@ impl<'a> ClientExecutor<'a> {
         };
 
         let ctx = surface.context()?;
-        ctx.set_operator(cairo::Operator::Source);
-        ctx.set_source_rgba(0.3, 1.0, 0.5, 0.5);
-        ctx.paint()?;
+        FrameDrawContext::new(ctx).draw(
+            &self.get_client_geometry(client)?,
+            &self.session.config().frame_config,
+            &ClientHints::new(),
+        )?;
         surface.flush();
 
         Ok(())

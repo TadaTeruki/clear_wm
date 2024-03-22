@@ -1,6 +1,7 @@
 pub mod container;
 pub mod drag;
 pub mod geometry;
+pub mod hints;
 pub mod map;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

@@ -99,6 +99,34 @@ impl ClientGeometry {
         }
     }
 
+    pub fn parse_as_outer_frame_draw_area(&self) -> Geometry {
+        Geometry {
+            x: 0,
+            y: 0,
+            width: self.geometry.width + 2 * self.frame_config.border_width,
+            height: self.geometry.height
+                + (2 * self.frame_config.border_width + self.frame_config.titlebar_height),
+        }
+    }
+
+    pub fn parse_as_inner_frame_draw_area(&self) -> Geometry {
+        Geometry {
+            x: self.frame_config.border_width as i32,
+            y: self.frame_config.border_width as i32,
+            width: self.geometry.width,
+            height: self.geometry.height + self.frame_config.titlebar_height,
+        }
+    }
+
+    pub fn parse_as_app_draw_area(&self) -> Geometry {
+        Geometry {
+            x: self.frame_config.border_width as i32,
+            y: (self.frame_config.border_width + self.frame_config.titlebar_height) as i32,
+            width: self.geometry.width,
+            height: self.geometry.height,
+        }
+    }
+
     pub fn move_relative(&self, rel_x: i32, rel_y: i32) -> ClientGeometry {
         ClientGeometry {
             geometry: Geometry {
