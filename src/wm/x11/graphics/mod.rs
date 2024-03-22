@@ -16,7 +16,7 @@ use super::session::X11Session;
 /// A rust version of XCB's `xcb_visualtype_t` struct. This is used in a FFI-way.
 #[derive(Debug, Clone, Copy)]
 #[repr(C)]
-pub struct xcb_visualtype_t {
+pub struct XCBVisualType {
     pub visual_id: u32,
     pub class: u8,
     pub bits_per_rgb_visual_type: u8,
@@ -28,14 +28,14 @@ pub struct xcb_visualtype_t {
 }
 
 /// Find a `xcb_visualtype_t` based on its ID number
-fn find_xcb_visualtype(screen: &Screen, depth_: u8) -> Option<xcb_visualtype_t> {
+fn find_xcb_visualtype(screen: &Screen, depth_: u8) -> Option<XCBVisualType> {
     for depth in &screen.allowed_depths {
         if depth.depth != depth_ {
             continue;
         }
         for visual_type in &depth.visuals {
             if visual_type.class == VisualClass::TRUE_COLOR {
-                return Some(xcb_visualtype_t {
+                return Some(XCBVisualType {
                     visual_id: visual_type.visual_id,
                     class: visual_type.class.into(),
                     bits_per_rgb_visual_type: visual_type.bits_per_rgb_value,
@@ -52,7 +52,7 @@ fn find_xcb_visualtype(screen: &Screen, depth_: u8) -> Option<xcb_visualtype_t> 
 }
 
 pub struct GraphicsVisual {
-    visual_type: xcb_visualtype_t,
+    visual_type: XCBVisualType,
     depth: u8,
 }
 
@@ -72,7 +72,7 @@ impl GraphicsVisual {
         self.depth
     }
 
-    pub fn visual_type(&self) -> &xcb_visualtype_t {
+    pub fn visual_type(&self) -> &XCBVisualType {
         &self.visual_type
     }
 
