@@ -9,11 +9,7 @@
 //! The entire repository can be found at:
 //! https://github.com/psychon/x11rb/
 
-use x11rb::{
-    connection::Connection,
-    protocol::xproto::{Screen, VisualClass, Window},
-    xcb_ffi::XCBConnection,
-};
+use x11rb::protocol::xproto::{Screen, VisualClass, Window};
 
 use super::session::X11Session;
 
@@ -65,12 +61,8 @@ pub struct CairoSurface {
 }
 
 impl CairoSession {
-    pub fn connect(
-        connection: &XCBConnection,
-        screen_num: usize,
-    ) -> Result<Self, Box<dyn std::error::Error>> {
+    pub fn connect(screen: &Screen) -> Result<Self, Box<dyn std::error::Error>> {
         let depth = 32;
-        let screen = &connection.setup().roots[screen_num];
         let visual_type = find_xcb_visualtype(screen, depth).ok_or("Could not find visual")?;
 
         Ok(Self { visual_type, depth })

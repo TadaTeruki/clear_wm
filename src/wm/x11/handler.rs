@@ -12,7 +12,7 @@ use x11rb::{
 
 use crate::model::client::{drag::DragState, geometry::ClientGeometry};
 
-use super::{cairo::CairoSession, client_executor::ClientExecutor, session::X11Session};
+use super::{client_executor::ClientExecutor, session::X11Session};
 
 /// Handler processes X11 events and dispatches them to the appropriate client.
 pub struct Handler<'a> {
@@ -22,11 +22,11 @@ pub struct Handler<'a> {
 }
 
 impl<'a> Handler<'a> {
-    pub fn new(session: &'a X11Session, cairo_session: CairoSession) -> Self {
+    pub fn new(session: &'a X11Session) -> Self {
         Self {
             session,
             drag_state: DragState::None,
-            client_exec: ClientExecutor::new(session, cairo_session),
+            client_exec: ClientExecutor::new(session),
         }
     }
 
@@ -175,7 +175,7 @@ impl<'a> Handler<'a> {
             ColormapAlloc::NONE,
             frame_colormap,
             self.session.screen().root,
-            self.client_exec.cairo_session().visual_type().visual_id,
+            self.session.cairo_session().visual_type().visual_id,
         )?;
 
         let frame_values = CreateWindowAux::default()
@@ -212,7 +212,7 @@ impl<'a> Handler<'a> {
         log::info!("creating window...");
 
         self.session.connection().create_window(
-            self.client_exec.cairo_session().depth(),
+            self.session.cairo_session().depth(),
             frame,
             self.session.screen().root,
             frame_geometry.x as i16,
@@ -221,7 +221,7 @@ impl<'a> Handler<'a> {
             frame_geometry.height as u16,
             0,
             WindowClass::INPUT_OUTPUT,
-            self.client_exec.cairo_session().visual_type().visual_id,
+            self.session.cairo_session().visual_type().visual_id,
             &frame_values,
         )?;
 

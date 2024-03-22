@@ -1,10 +1,7 @@
 use log::{error, info};
 use wm::x11::window_manager::X11WindowManager;
 
-use crate::{
-    config::WindowManagerConfig,
-    wm::x11::{cairo::CairoSession, session::X11Session},
-};
+use crate::{config::WindowManagerConfig, wm::x11::session::X11Session};
 
 mod config;
 mod logger;
@@ -19,11 +16,7 @@ fn main() {
     let session = X11Session::connect(wmconfig)
         .unwrap_or_else(|e| panic!("Failed to connect to X11 server: {}", e));
 
-    let cairo_session = CairoSession::connect(session.connection(), session.screen_num())
-        .unwrap_or_else(|e| panic!("Failed to initialize cairo session: {}", e));
-
-    X11WindowManager::new(&session, cairo_session)
-        .unwrap_or_else(|e| panic!("Failed to initialize window manager: {}", e))
+    X11WindowManager::new(&session)
         .start()
         .unwrap_or_else(|e| error!("Error: {}", e));
 }
