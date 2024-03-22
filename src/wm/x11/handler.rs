@@ -161,8 +161,9 @@ impl<'a> Handler<'a> {
         event: ConfigureRequestEvent,
     ) -> Result<(), Box<dyn std::error::Error>> {
         // just configure the window
-        let values: ConfigureWindowAux =
-            ConfigureWindowAux::from_configure_request(&event).stack_mode(None);
+        let values: ConfigureWindowAux = ConfigureWindowAux::from_configure_request(&event)
+            .stack_mode(None)
+            .border_width(0);
 
         self.session
             .connection()
