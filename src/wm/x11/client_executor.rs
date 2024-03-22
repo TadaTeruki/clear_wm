@@ -57,7 +57,7 @@ impl<'a> ClientExecutor<'a> {
         };
 
         let ctx = surface.context()?;
-        ctx.set_source_rgb(1.0, 0.5, 0.5);
+        ctx.set_source_rgba(0.3, 1.0, 0.5, 0.5);
         ctx.paint()?;
         surface.flush();
 
