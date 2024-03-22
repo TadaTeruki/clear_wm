@@ -66,6 +66,23 @@ impl FrameDrawContext {
         );
 
         self.context.fill()?;
+
+        let title_margin = frame_config.titlebar_height as f64 * 0.2;
+        let title_font_size = frame_config.titlebar_height as f64 * 0.6;
+
+        // draw title in hints
+        self.context.set_source_rgba(0.95, 0.95, 0.95, 1.0);
+        self.context.move_to(
+            inner_frame_draw_area.x as f64 + title_margin,
+            inner_frame_draw_area.y as f64 + frame_config.titlebar_height as f64 - title_margin,
+        );
+        // font size
+        self.context.set_font_size(title_font_size);
+        // font family
+        self.context
+            .select_font_face("Arial", cairo::FontSlant::Normal, cairo::FontWeight::Bold);
+        self.context.show_text(&hints.title)?;
+
         Ok(())
     }
 }

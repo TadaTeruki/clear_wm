@@ -16,6 +16,7 @@ pub struct ClientExecutor<'a> {
     surface_container: ClientMap<Window, CairoSurface>,
     draw_queue: ClientMap<Window, ()>,
     move_resize_queue: ClientMap<Window, ClientGeometry>,
+    hints_cache: ClientMap<Window, ClientHints>,
 }
 
 impl<'a> ClientExecutor<'a> {
@@ -26,11 +27,65 @@ impl<'a> ClientExecutor<'a> {
             surface_container: ClientMap::new(),
             draw_queue: ClientMap::new(),
             move_resize_queue: ClientMap::new(),
+            hints_cache: ClientMap::new(),
         }
     }
 
     pub fn container(&self) -> &ClientContainer<Window> {
         &self.client_container
+    }
+
+    pub fn update_hints(
+        &mut self,
+        client: Client<Window>,
+    ) -> Result<(), Box<dyn std::error::Error>> {
+        let hints_cache = self.fetch_hints(client)?;
+        self.hints_cache.insert(client, hints_cache);
+        Ok(())
+    }
+
+    fn fetch_hints(
+        &self,
+        client: Client<Window>,
+    ) -> Result<ClientHints, Box<dyn std::error::Error>> {
+        let title = {
+            let title = self
+                .session
+                .connection()
+                .get_property(
+                    false,
+                    client.app_id,
+                    self.session.atoms().WM_NAME,
+                    self.session.atoms().UTF8_STRING,
+                    0,
+                    1024,
+                )?
+                .reply()?;
+
+            if title.value_len != 0 {
+                String::from_utf8(title.value)?
+            } else {
+                let title = self
+                    .session
+                    .connection()
+                    .get_property(
+                        false,
+                        client.app_id,
+                        self.session.atoms().WM_NAME,
+                        self.session.atoms().STRING,
+                        0,
+                        1024,
+                    )?
+                    .reply()?;
+
+                if title.value_len != 0 {
+                    String::from_utf8(title.value)?
+                } else {
+                    String::from("")
+                }
+            }
+        };
+        Ok(ClientHints { title })
     }
 
     pub fn add_client(
@@ -62,6 +117,7 @@ impl<'a> ClientExecutor<'a> {
         self.surface_container.remove(client);
         self.draw_queue.remove(client);
         self.move_resize_queue.remove(client);
+        self.hints_cache.remove(client);
     }
 
     fn get_focused_client(&self) -> Result<Option<Client<Window>>, Box<dyn std::error::Error>> {
@@ -146,11 +202,18 @@ impl<'a> ClientExecutor<'a> {
             return Ok(());
         };
 
+        let hint_default = ClientHints::default();
+        let hints = if let Some(hints) = self.hints_cache.query(client) {
+            hints
+        } else {
+            &hint_default
+        };
+
         let ctx = surface.context()?;
         FrameDrawContext::new(ctx).draw(
             &self.get_client_geometry(client)?,
             &self.session.config().frame_config,
-            &ClientHints::new(),
+            hints,
         )?;
         surface.flush();
 

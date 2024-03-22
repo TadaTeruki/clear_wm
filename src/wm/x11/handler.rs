@@ -2,10 +2,10 @@ use x11rb::{
     connection::Connection,
     protocol::{
         xproto::{
-            ButtonPressEvent, ButtonReleaseEvent, ColormapAlloc, ConfigureRequestEvent,
-            ConfigureWindowAux, ConnectionExt, CreateWindowAux, EventMask, ExposeEvent,
-            MapNotifyEvent, MapRequestEvent, MotionNotifyEvent, UnmapNotifyEvent, Window,
-            WindowClass,
+            ButtonPressEvent, ButtonReleaseEvent, ChangeWindowAttributesAux, ColormapAlloc,
+            ConfigureRequestEvent, ConfigureWindowAux, ConnectionExt, CreateWindowAux, EventMask,
+            ExposeEvent, MapNotifyEvent, MapRequestEvent, MotionNotifyEvent, PropertyNotifyEvent,
+            UnmapNotifyEvent, Window, WindowClass,
         },
         Event,
     },
@@ -47,6 +47,7 @@ impl<'a> Handler<'a> {
             Event::ButtonRelease(event) => self.handle_button_release(event)?,
             Event::MotionNotify(event) => self.handle_motion_notify(event)?,
             Event::UnmapNotify(event) => self.handle_unmap_notify(event)?,
+            Event::PropertyNotify(event) => self.handle_property_notify(event)?,
             _ => {}
         }
         Ok(())
@@ -54,6 +55,25 @@ impl<'a> Handler<'a> {
 
     pub fn flush_queued(&mut self) -> Result<(), Box<dyn std::error::Error>> {
         self.client_exec.flush_queued()?;
+        Ok(())
+    }
+
+    fn handle_property_notify(
+        &mut self,
+        event: PropertyNotifyEvent,
+    ) -> Result<(), Box<dyn std::error::Error>> {
+        // get client if the window is a app
+        let client = if let Some(client) = self
+            .client_exec
+            .container()
+            .query_client_from_app(event.window)
+        {
+            client
+        } else {
+            return Ok(());
+        };
+        self.client_exec.update_hints(client)?;
+        self.client_exec.queue_draw(client);
         Ok(())
     }
 
@@ -257,6 +277,11 @@ impl<'a> Handler<'a> {
                 .y(app_geometry.y)
                 .width(app_geometry.width)
                 .height(app_geometry.height),
+        )?;
+
+        self.session.connection().change_window_attributes(
+            event.window,
+            &ChangeWindowAttributesAux::default().event_mask(EventMask::PROPERTY_CHANGE),
         )?;
 
         self.session.connection().map_window(frame)?;

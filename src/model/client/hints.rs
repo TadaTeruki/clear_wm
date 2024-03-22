@@ -1,7 +1,4 @@
-pub struct ClientHints {}
-
-impl ClientHints {
-    pub fn new() -> Self {
-        Self {}
-    }
+#[derive(Debug, Clone, Default)]
+pub struct ClientHints {
+    pub title: String,
 }
