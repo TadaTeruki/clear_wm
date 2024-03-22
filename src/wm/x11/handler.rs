@@ -3,8 +3,9 @@ use x11rb::{
     protocol::{
         xproto::{
             ButtonPressEvent, ButtonReleaseEvent, ColormapAlloc, ConfigureRequestEvent,
-            ConfigureWindowAux, ConnectionExt, CreateWindowAux, EventMask, MapNotifyEvent,
-            MapRequestEvent, MotionNotifyEvent, UnmapNotifyEvent, Window, WindowClass,
+            ConfigureWindowAux, ConnectionExt, CreateWindowAux, EventMask, ExposeEvent,
+            MapNotifyEvent, MapRequestEvent, MotionNotifyEvent, UnmapNotifyEvent, Window,
+            WindowClass,
         },
         Event,
     },
@@ -36,6 +37,7 @@ impl<'a> Handler<'a> {
             Event::ClientMessage(_) => {
                 return Ok(());
             }
+            Event::Expose(event) => self.handle_expose(event)?,
             Event::ConfigureRequest(event) => self.handle_configure_request(event)?,
             Event::MapRequest(event) => self.handle_map_request(event)?,
             Event::MapNotify(event) => self.handle_map_notify(event)?,
@@ -45,6 +47,22 @@ impl<'a> Handler<'a> {
             Event::UnmapNotify(event) => self.handle_unmap_notify(event)?,
             _ => {}
         }
+        Ok(())
+    }
+
+    fn handle_expose(&self, event: ExposeEvent) -> Result<(), Box<dyn std::error::Error>> {
+        // get client if the window is a frame
+        let client = if let Some(client) = self
+            .client_exec
+            .container()
+            .query_client_from_frame(event.window)
+        {
+            client
+        } else {
+            return Ok(());
+        };
+
+        self.client_exec.draw_client(client)?;
         Ok(())
     }
 

@@ -115,4 +115,8 @@ impl CairoSurface {
     pub fn resize(&mut self, width: i32, height: i32) -> Result<(), Box<dyn std::error::Error>> {
         Ok(self.surface.set_size(width, height)?)
     }
+
+    pub fn flush(&self) {
+        self.surface.flush();
+    }
 }

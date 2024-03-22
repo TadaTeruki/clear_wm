@@ -49,6 +49,21 @@ impl<'a> ClientExecutor<'a> {
         Ok(())
     }
 
+    pub fn draw_client(&self, client: Client<Window>) -> Result<(), Box<dyn std::error::Error>> {
+        let surface = if let Some(surface) = self.surface_container.query(client) {
+            surface
+        } else {
+            return Ok(());
+        };
+
+        let ctx = surface.context()?;
+        ctx.set_source_rgb(1.0, 0.5, 0.5);
+        ctx.paint()?;
+        surface.flush();
+
+        Ok(())
+    }
+
     pub fn remove_client(&mut self, client: Client<Window>) {
         self.client_container.remove_client(client);
         self.surface_container.remove(client);
