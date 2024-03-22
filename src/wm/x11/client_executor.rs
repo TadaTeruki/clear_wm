@@ -4,7 +4,7 @@ use crate::model::client::{
     container::ClientContainer, geometry::ClientGeometry, map::ClientMap, Client,
 };
 
-use super::{cairo::CairoSurface, session::X11Session};
+use super::{graphics::CairoSurface, session::X11Session};
 
 pub struct ClientExecutor<'a> {
     session: &'a X11Session,

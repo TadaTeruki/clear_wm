@@ -51,7 +51,7 @@ fn find_xcb_visualtype(screen: &Screen, depth_: u8) -> Option<xcb_visualtype_t> 
     None
 }
 
-pub struct CairoSession {
+pub struct GraphicsVisual {
     visual_type: xcb_visualtype_t,
     depth: u8,
 }
@@ -60,8 +60,8 @@ pub struct CairoSurface {
     surface: cairo::XCBSurface,
 }
 
-impl CairoSession {
-    pub fn connect(screen: &Screen) -> Result<Self, Box<dyn std::error::Error>> {
+impl GraphicsVisual {
+    pub fn create(screen: &Screen) -> Result<Self, Box<dyn std::error::Error>> {
         let depth = 32;
         let visual_type = find_xcb_visualtype(screen, depth).ok_or("Could not find visual")?;
 
