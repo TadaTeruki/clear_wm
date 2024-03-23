@@ -9,15 +9,3 @@ pub struct FrameConfig {
     pub titlebar_height: u32,
     pub corner_radius: u32,
 }
-
-impl Default for WindowManagerConfig {
-    fn default() -> Self {
-        Self {
-            frame_config: FrameConfig {
-                border_width: 18,
-                titlebar_height: 28,
-                corner_radius: 24,
-            },
-        }
-    }
-}
