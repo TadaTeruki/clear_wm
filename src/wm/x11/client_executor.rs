@@ -19,6 +19,11 @@ pub struct ClientExecutor<'a> {
     hints_cache: ClientMap<Window, ClientHints>,
 }
 
+pub enum ClientRaisedResult {
+    Raised,
+    NotChanged,
+}
+
 impl<'a> ClientExecutor<'a> {
     pub fn new(session: &'a X11Session) -> Self {
         Self {
@@ -126,12 +131,16 @@ impl<'a> ClientExecutor<'a> {
         Ok(self.client_container.query_client_from_app(focused_window))
     }
 
-    pub fn raise_client(&self, client: Client<Window>) -> Result<(), Box<dyn std::error::Error>> {
-        // If there is a previous client, move the frame to the above of the stack to hide application window.
+    // If the client is already raised, return false
+    pub fn raise_client(
+        &self,
+        client: Client<Window>,
+    ) -> Result<ClientRaisedResult, Box<dyn std::error::Error>> {
         if let Some(previous_client) = self.get_focused_client()? {
             if previous_client == client {
-                return Ok(());
+                return Ok(ClientRaisedResult::NotChanged);
             }
+            // If there is a previous client, move the frame to the above of the stack to hide application window.
             self.session.connection().configure_window(
                 previous_client.frame_id,
                 &ConfigureWindowAux::default()
@@ -156,7 +165,7 @@ impl<'a> ClientExecutor<'a> {
             &ConfigureWindowAux::default().stack_mode(x11rb::protocol::xproto::StackMode::ABOVE),
         )?;
 
-        Ok(())
+        Ok(ClientRaisedResult::Raised)
     }
 
     pub fn get_client_geometry(

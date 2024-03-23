@@ -15,7 +15,10 @@ use log::info;
 
 use crate::model::client::{drag::DragState, geometry::ClientGeometry};
 
-use super::{client_executor::ClientExecutor, session::X11Session};
+use super::{
+    client_executor::{ClientExecutor, ClientRaisedResult},
+    session::X11Session,
+};
 
 /// Handler processes X11 events and dispatches them to the appropriate client.
 pub struct Handler<'a> {
@@ -108,7 +111,10 @@ impl<'a> Handler<'a> {
             return Ok(());
         };
 
-        self.client_exec.raise_client(client)?;
+        // raise client
+        if let ClientRaisedResult::Raised = self.client_exec.raise_client(client)? {
+            return Ok(());
+        }
 
         let geometry_control = self
             .client_exec
