@@ -57,7 +57,7 @@ impl FrameDrawContext {
         let app_draw_area = geometry.parse_as_app_draw_area();
 
         // draw app
-        self.context.set_source_rgba(1.0, 1.0, 1.0, 0.5);
+        self.context.set_source_rgba(1.0, 1.0, 1.0, 0.0);
         self.context.rectangle(
             app_draw_area.x as f64,
             app_draw_area.y as f64,
